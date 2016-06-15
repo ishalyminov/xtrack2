@@ -31,16 +31,14 @@
         }
 }
 """
+
 import collections
-import itertools
 import time
 import json
 import logging
 import numpy as np
-import os
+import argparse
 
-import dstc_util
-from data_model import Dialog
 from data import Data, Tagger
 from utils import pdb_on_error
 from model import Model
@@ -133,7 +131,7 @@ class XTrack2DSTCTracker(object):
         goal_labels_debug = {
                 slot: goal_labels[slot].keys()[0] for slot in goal_labels
             }
-        return {
+        return { # the correct thing would be: 'frame-label': {slot: probs}
             "goal-labels": goal_labels,
             "method-label": method_label,
             "requested-slots": req_slots,
@@ -308,9 +306,7 @@ def main(dataset_name, data_file, output_file, params_file, model_type):
         json.dump(tracker_output, f_out, indent=4)
 
 
-
 if __name__ == '__main__':
-    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_name', type=str, default='__test__')
     parser.add_argument('--data_file', required=True)

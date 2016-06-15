@@ -9,6 +9,7 @@ import random
 import theano
 import theano.gradient
 import time
+import argparse
 
 theano.config.floatX = 'float32'
 #theano.config.allow_gc=False
@@ -19,7 +20,6 @@ theano.config.floatX = 'float32'
 theano.config.mode = 'FAST_RUN'
 #theano.config.optimizer = 'fast_compile'
 
-from passage.iterators import (padded, SortedPadded)
 from passage.utils import iter_data
 from data import Data
 from utils import (get_git_revision_hash, pdb_on_error, ConfusionMatrix, P,
@@ -30,8 +30,14 @@ from model_baseline import BaselineModel
 from dstc_tracker import XTrack2DSTCTracker
 
 
-def compute_stats(slots, slot_selection, classes, prediction, y,
-                  joint_slot_name):
+def compute_stats(
+    slots,
+    slot_selection,
+    classes,
+    prediction,
+    y,
+    joint_slot_name
+):
     conf_mats = {}
     conf_mats[joint_slot_name] = ConfusionMatrix(2)
     for slot in slots:
@@ -79,8 +85,6 @@ def print_mb(slots, classes, vocab_rev, mb, prediction):
                 print
                 print curr_label
                 print curr_pred
-
-
 
 
 def visualize_prediction(xtd, prediction):
@@ -633,8 +637,6 @@ def main(args_lst,
 
 
 def build_argument_parser():
-    import argparse
-
     parser = argparse.ArgumentParser()
     parser.add_argument('experiment_path')
 
@@ -662,8 +664,9 @@ def build_argument_parser():
     parser.add_argument('--n_cells', default=5, type=int)
     parser.add_argument('--emb_size', default=7, type=int)
     parser.add_argument('--x_include_score', default=False, action='store_true')
-    parser.add_argument('--x_include_token_ftrs', default=False,
-                        action='store_true')
+    parser.add_argument(
+        '--x_include_token_ftrs', default=False, action='store_true'
+    )
     parser.add_argument('--x_include_mlp', default=False, action='store_true')
     parser.add_argument('--init_emb_from', default=None, type=str)
     parser.add_argument('--no_train_emb', default=False, action='store_true')
@@ -678,22 +681,20 @@ def build_argument_parser():
 
     parser.add_argument('--rnn_n_layers', default=1, type=int)
 
-    parser.add_argument('--lstm_peepholes', default=False,
-                        action='store_true')
-    parser.add_argument('--lstm_bidi', default=False,
-                        action='store_true')
+    parser.add_argument('--lstm_peepholes', default=False, action='store_true')
+    parser.add_argument('--lstm_bidi', default=False, action='store_true')
 
-
-    parser.add_argument('--debug', default=False,
-                        action='store_true')
+    parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--track_log', default='track_log.txt', type=str)
-    parser.add_argument('--eval_on_full_train', default=False,
-                        action='store_true')
-
-    parser.add_argument('--enable_branch_exp', default=False,
-                        action='store_true')
-    parser.add_argument('--enable_token_supervision', default=False,
-                        action='store_true')
+    parser.add_argument(
+        '--eval_on_full_train', default=False, action='store_true'
+    )
+    parser.add_argument(
+        '--enable_branch_exp', default=False, action='store_true'
+    )
+    parser.add_argument(
+        '--enable_token_supervision', default=False, action='store_true'
+    )
 
     return parser
 

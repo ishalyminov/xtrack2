@@ -1,8 +1,7 @@
-import os
-
-import data_model
 from data import *
 from data_baseline import *
+import import_dstc5
+
 
 def load_dialogs(data_dir):
     dialogs = []
@@ -33,30 +32,33 @@ def parse_slots_and_slot_groups(args):
     return slot_groups, slots
 
 
-import import_dstc
-
 def import_dstc_data(data_directory, out_dir, e_root, dataset, data_name):
-    input_dir = os.path.join(data_directory, 'dstc2/data')
-    flist = os.path.join(data_directory,
-                         'dstc2/scripts/config/dstc2_%s.flist' % dataset)
-    import_dstc.import_dstc(data_dir=input_dir, out_dir=out_dir, flist=flist,
-                            constraint_slots='food,area,pricerange,name',
-                            requestable_slots='food,area,pricerange,'
-                                                       'name,addr,phone,'
-                                                       'postcode,signature',
-                            use_stringified_system_acts=True)
+    input_dir = os.path.join(data_directory, 'dstc5')
+    flist = 'dstc5_scripts/config/dstc4_%s.flist' % dataset
+    import_dstc5.import_dstc(
+        data_dir=input_dir,
+        out_dir=out_dir,
+        flist=flist,
+        use_stringified_system_acts=True)
 
     return out_dir
 
 
-def prepare_experiment(experiment_name, data_directory, slots, slot_groups,
-                       ontology, skip_dstc_import_step, builder_opts,
-                       builder_type):
+def prepare_experiment(
+    experiment_name,
+    data_directory,
+    slots,
+    slot_groups,
+    ontology,
+    skip_dstc_import_step,
+    builder_opts,
+    builder_type
+):
     e_root = os.path.join(data_directory, 'xtrack/%s' % experiment_name)
     debug_dir = os.path.join(e_root, 'debug')
 
     based_on = None
-    for dataset in ['train', 'dev', 'test']:
+    for dataset in ['train', 'dev']:
         out_dir = os.path.join(e_root, dataset)
         if not skip_dstc_import_step:
             import_dstc_data(data_directory=data_directory,
@@ -72,7 +74,7 @@ def prepare_experiment(experiment_name, data_directory, slots, slot_groups,
         logging.info('Initializing.')
         if builder_type == 'baseline':
             builder_cls = DataBuilderBaseline
-        elif builder_type == 'xtrack':
+        elif builder_type == 'xtrack_dstc4':
             builder_cls = DataBuilder
         else:
             raise Exception('unknown builder')
@@ -85,7 +87,7 @@ def prepare_experiment(experiment_name, data_directory, slots, slot_groups,
             oov_ins_p=0.1 if dataset == 'train' else 0.0,
             word_drop_p=0.0,
             include_system_utterances=True,
-            nth_best=1,
+            nth_best=0,
             score_bins=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.01],
             ontology=ontology,
             debug_dir=debug_dir,

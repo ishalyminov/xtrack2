@@ -1,8 +1,0 @@
-<table>
-    {% for slot_name in slots %}
-    <tr>
-        <td>{{slot_name}}_{% if result[slot_name] %}ok{% else %}err{% endif %}</td>
-    </tr>
-    {% endfor %}
-</table>
-

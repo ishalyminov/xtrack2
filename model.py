@@ -371,8 +371,3 @@ class Model(NeuralModel):
             data.extend(y_labels)
 
         return tuple(data)
-
-
-
-
-

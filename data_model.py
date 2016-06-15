@@ -5,6 +5,11 @@ class Dialog(object):
     ACTOR_SYSTEM = 0
     ACTOR_USER = 1
 
+    ACTORS_MAP = {
+        'Tourist': ACTOR_USER,
+        'Guide': ACTOR_SYSTEM
+    }
+
     def __init__(self, object_id, session_id):
         self.messages = []
         self.states = []  # Each message has one state.
@@ -37,3 +42,4 @@ class Dialog(object):
         obj.actors= data['actors']
 
         return obj
+
