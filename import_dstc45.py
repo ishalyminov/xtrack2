@@ -3,11 +3,11 @@ import os
 import collections
 
 import dstc_util
+from xtrack2_config import dstc45_ontology_filename
 from data_model import Dialog
 
 from dstc5_scripts import ontology_reader
 
-ONTOLOGY_FILE = 'dstc5_scripts/config/ontology_dstc5.json'
 ONTOLOGY = {}
 
 
@@ -91,5 +91,7 @@ if __name__ == '__main__':
         default=False
     )
     args = parser.parse_args()
-    ONTOLOGY = build_unified_ontology(ontology_reader.OntologyReader(ONTOLOGY_FILE))
+    ONTOLOGY = build_unified_ontology(
+        ontology_reader.OntologyReader(dstc45_ontology_filename)
+    )
     import_dstc(**vars(args))

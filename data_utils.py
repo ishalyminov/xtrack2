@@ -1,12 +1,16 @@
 from data import *
 from data_baseline import *
-import import_dstc5
+import import_dstc45
+from xtrack2_config import (
+    data_directory,
+    experiment_directory,
+    dstc45_config_dir
+)
 
 
 def load_dialogs(data_dir):
     dialogs = []
-    for f_name in sorted(os.listdir(data_dir), key=lambda x: int(x.split(
-            '.')[0])):
+    for f_name in sorted(os.listdir(data_dir), key=lambda x: x.split('.')[0]):
         if f_name.endswith('.json'):
             dialog = data_model.Dialog.deserialize(
                 open(os.path.join(data_dir, f_name)).read()
@@ -32,15 +36,18 @@ def parse_slots_and_slot_groups(args):
     return slot_groups, slots
 
 
-def import_dstc_data(data_directory, out_dir, e_root, dataset, data_name):
-    input_dir = os.path.join(data_directory, 'dstc5')
-    flist = 'dstc5_scripts/config/dstc4_%s.flist' % dataset
-    import_dstc5.import_dstc(
+def import_dstc_data(out_dir, dataset):
+    input_dir = data_directory
+    flist = os.path.join(
+        dstc45_config_dir,
+        'dstc4_%s.flist' % dataset
+    )
+    import_dstc45.import_dstc(
         data_dir=input_dir,
         out_dir=out_dir,
         flist=flist,
-        use_stringified_system_acts=True)
-
+        use_stringified_system_acts=True
+    )
     return out_dir
 
 
@@ -54,27 +61,20 @@ def prepare_experiment(
     builder_opts,
     builder_type
 ):
-    e_root = os.path.join(data_directory, 'xtrack/%s' % experiment_name)
+    e_root = os.path.join(experiment_directory, 'xtrack/%s' % experiment_name)
     debug_dir = os.path.join(e_root, 'debug')
 
     based_on = None
-    for dataset in ['train', 'dev']:
+    for dataset in ['train', 'dev', 'test']:
         out_dir = os.path.join(e_root, dataset)
         if not skip_dstc_import_step:
-            import_dstc_data(data_directory=data_directory,
-                             e_root=e_root,
-                             dataset=dataset,
-                             data_name=experiment_name,
-                             out_dir=out_dir)
-
+            import_dstc_data(out_dir, dataset)
         dialogs = load_dialogs(out_dir)
-
-
 
         logging.info('Initializing.')
         if builder_type == 'baseline':
             builder_cls = DataBuilderBaseline
-        elif builder_type == 'xtrack_dstc4':
+        elif builder_type == 'xtrack_dstc45':
             builder_cls = DataBuilder
         else:
             raise Exception('unknown builder')
@@ -102,62 +102,3 @@ def prepare_experiment(
 
         if dataset == 'train':
             based_on = out_file
-"""
-
-def main():
-    from utils import init_logging
-
-    init_logging('XTrackData')
-    random.seed(0)
-    from utils import pdb_on_error
-
-    pdb_on_error()
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--data_dir', required=True)
-    parser.add_argument('--out_file', required=True)
-    parser.add_argument('--based_on', type=str, required=False, default=None)
-    parser.add_argument('--include_base_seqs', action='store_true',
-                        default=False)
-    parser.add_argument('--slots', default='food')
-    parser.add_argument('--oov_ins_p', type=float, required=False, default=0.0)
-    parser.add_argument('--word_drop_p', type=float, required=False,
-                        default=0.0)
-    parser.add_argument('--include_system_utterances', action='store_true',
-                        default=False)
-    parser.add_argument('--nth_best', type=int, default=1)
-    parser.add_argument('--debug_dir', default=None)
-
-    args = parser.parse_args()
-
-
-    slot_groups, slots = parse_slots_and_slot_groups(args)
-    score_bins = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0]
-
-    dialogs = load_dialogs(args.data_dir)
-
-    logging.info('Initializing.')
-    xtd_builder = XTrackData2Builder(
-        based_on=args.based_on,
-        include_base_seqs=args.include_base_seqs,
-        slots=slots,
-        slot_groups=slot_groups,
-        oov_ins_p=args.oov_ins_p,
-        word_drop_p=args.word_drop_p,
-        include_system_utterances=args.include_system_utterances,
-        nth_best=args.nth_best,
-        score_bins=score_bins,
-        debug_dir=args.debug_dir
-    )
-    logging.info('Building.')
-    xtd = xtd_builder.build(dialogs)
-
-    logging.info('Saving.')
-    xtd.save(args.out_file)
-
-
-if __name__ == '__main__':
-    main()
-
-    """

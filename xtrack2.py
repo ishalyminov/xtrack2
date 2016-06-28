@@ -22,8 +22,13 @@ theano.config.mode = 'FAST_RUN'
 
 from passage.utils import iter_data
 from data import Data
-from utils import (get_git_revision_hash, pdb_on_error, ConfusionMatrix, P,
-                   inline_print)
+from utils import (
+    get_git_revision_hash,
+    pdb_on_error,
+    ConfusionMatrix,
+    P,
+    inline_print
+)
 from model import Model
 from model_simple_conv import SimpleConvModel
 from model_baseline import BaselineModel
@@ -135,7 +140,6 @@ def visualize_prediction(xtd, prediction):
         print
 
 
-
 def vlog(txt, *args, **kwargs):
     separator = kwargs.pop('separator', '\n')
     res = [txt]
@@ -195,6 +199,7 @@ def prepare_minibatches(seqs, mb_size, model, slots):
 
     return minibatches
 
+
 def compute_prt(cmat, i):
     r = cmat[i,i] * 100.0
     total_i = cmat[i, :].sum()
@@ -218,10 +223,21 @@ def visualize_mb(model, mb):
     #print_mb(xtd_v, prediction_valid)
 
 
-def eval_model(model, slots, classes, xtd_t, xtd_v, train_data, valid_data,
-               class_groups,
-               best_acc, best_acc_train, tracker_valid, tracker_train,
-               track_log):
+def eval_model(
+    model,
+    slots,
+    classes,
+    xtd_t,
+    xtd_v,
+    train_data,
+    valid_data,
+    class_groups,
+    best_acc,
+    best_acc_train,
+    tracker_valid,
+    tracker_train,
+    track_log
+):
     prediction_valid = model._predict(*valid_data)
     visualize_prediction(xtd_v, prediction_valid)
 
@@ -302,6 +318,7 @@ def eval_model(model, slots, classes, xtd_t, xtd_v, train_data, valid_data,
     # 100))
 
     return accuracy
+
 
 class TrainingStats(object):
     def __init__(self):

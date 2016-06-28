@@ -67,7 +67,7 @@ class Model(NeuralModel):
 
 
         input_layers = [
-             input_token_layer
+            input_token_layer
         ]
         if x_include_score:
             x_score = tt.imatrix()
