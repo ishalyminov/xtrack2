@@ -36,8 +36,10 @@ class DataBuilderBaseline(data.DataBuilder):
         res = super(DataBuilderBaseline, self).build(dialogs)
         # save only features that occur at least 5 times in the corpus
 
-        res.vocab = {ftr: i for ftr, i in
-                            zip(self.feature_cnts.keys(),count())}
+        res.vocab = {
+            ftr: i
+            for ftr, i in zip(self.feature_cnts.keys(), count())
+        }
 
         return res
 

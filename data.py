@@ -5,16 +5,10 @@ import os
 import random
 import re
 import numpy as np
-import math
 
 import data_model
 
-
-
 word_re = re.compile(r'([A-Za-z0-9_]+)')
-
-
-
 
 
 def tokenize(text):
@@ -132,16 +126,19 @@ class DataBuilder(object):
             self._dump_seq_info(seq)
             self.f_dump_text.write('\n')
 
-        logging.info('There are in total %d labels in %d sequences.'
-                     % (n_labels, len(self.xd.sequences, )))
-
+        logging.info(
+            'There are in total %d labels in %d sequences.'
+            % (n_labels, len(self.xd.sequences, ))
+        )
         return self.xd
 
     def _create_new_data_instance(self):
         self.xd = Data()
-        self.xd.initialize(self.slots, self.slot_groups, self.based_on,
-                           self.include_base_seqs, self.score_bins,
-                           self.tagged, self.ontology, self.tagger)
+        self.xd.initialize(
+            self.slots, self.slot_groups, self.based_on,
+            self.include_base_seqs, self.score_bins,
+            self.tagged, self.ontology, self.tagger
+        )
 
     def _create_seq(self, dialog):
         seq = self.seq_cls(dialog.session_id, dialog.object_id)
@@ -159,9 +156,13 @@ class DataBuilder(object):
     def _process_dialog(self, dialog, seq):
         last_state = None
 
-        for msgs, state, actor in zip(dialog.messages,
-                                      dialog.states,
-                                      dialog.actors):
+        for msgs, state, actor, topic_id, topic_bio in zip(
+                dialog.messages,
+                dialog.states,
+                dialog.actors,
+                dialog.topic_ids,
+                dialog.topic_bio
+        ):
             actor_is_system = actor == data_model.Dialog.ACTOR_SYSTEM
 
             msg, msg_score = self._flatten_nbest_list(actor_is_system, msgs)
@@ -170,8 +171,10 @@ class DataBuilder(object):
             if not self.include_system_utterances and actor_is_system:
                 continue
             else:
-                self._process_msg(msg, msg_score, state, last_state, actor, seq,
-                                  true_msg)
+                self._process_msg(
+                    msg, msg_score, state, last_state,
+                    actor, seq, true_msg, topic_id, topic_bio
+                )
             last_state = state
 
     def _dump_seq_info(self, seq):
@@ -181,16 +184,21 @@ class DataBuilder(object):
             self.f_dump_text.write('%s ' % token_str)
         self.f_dump_text.write('\n')
 
-    def _process_msg(self, msg, msg_score, state, last_state, actor, seq,
-                     true_msg):
-
+    def _process_msg(
+            self, msg, msg_score, state, last_state,
+            actor, seq, true_msg, topic_id, topic_bio
+    ):
         msg_score_bin = self.xd.get_score_bin(msg_score)
         token_seq = self._tokenize_msg(actor, msg)
-        self._dump_msg_info(last_state, msg_score, msg_score_bin, state,
-                            token_seq, true_msg)
+        if topic_bio == 'O':
+            state = {}
+            msg_score = 1.0
+        self._dump_msg_info(
+            last_state, msg_score, msg_score_bin, state, token_seq, true_msg
+        )
 
         for i, token in enumerate(token_seq):
-            if self.word_drop_p > random.random():
+            if random.random() < self.word_drop_p:
                 continue
 
             self.word_freq[token] += 1
@@ -201,14 +209,17 @@ class DataBuilder(object):
             self._append_token_to_seq(actor, msg_score_bin, seq, token, state)
 
         seq.true_input.append(true_msg)
-        if actor == data_model.Dialog.ACTOR_USER:
-            self._append_label_to_seq(msg_score, seq, state)
+        self._append_label_to_seq(msg_score, seq, state, topic_id, topic_bio)
 
-    def _dump_msg_info(self, last_state, msg_score, msg_score_bin, state,
-                       token_seq, true_msg):
-        self.f_dump_text.write(("%2.2f %d  " % (msg_score, msg_score_bin)) + " "
-                                                                        "".join(
-            token_seq) + '\n')
+    def _dump_msg_info(
+            self, last_state, msg_score, msg_score_bin,
+            state, token_seq, true_msg
+    ):
+        self.f_dump_text.write(
+            ("%2.2f %d  " % (msg_score, msg_score_bin)) +
+            " ".join(token_seq) +
+            '\n'
+        )
         self.f_dump_text.write(("TRUE  " + true_msg + '\n'))
         self.f_dump_cca.write(" ".join(token_seq))
         self.f_dump_cca.write("\t")
@@ -222,8 +233,6 @@ class DataBuilder(object):
                 for slot_value in slot_values:
                     msg = msg.replace(self.tagger.denormalize_slot_value(
                         slot_value), slot_value)
-
-
         token_seq = list(tokenize(msg))
 
         if actor == data_model.Dialog.ACTOR_SYSTEM:
@@ -260,11 +269,13 @@ class DataBuilder(object):
         else:
             return token
 
-    def _append_label_to_seq(self, msg_score, seq, state):
+    def _append_label_to_seq(self, msg_score, seq, state, segment_id, segment_bio):
         label = {
             'time': len(seq.data) - 1,
             'score': np.exp(msg_score),
-            'slots': {}
+            'slots': {},
+            'segment_id': segment_id,
+            'segment_bio': segment_bio
         }
         if self.no_label_weight:
             label['score'] = 1.0
@@ -286,8 +297,10 @@ class DataBuilder(object):
                     tag_cls_str = "#%s%d" % (slot, tag_ndx)
 
                     try:
-                        tagged_val = self.xd.get_value_index_for_slot(slot,
-                                                                      tag_cls_str)
+                        tagged_val = self.xd.get_value_index_for_slot(
+                            slot,
+                            tag_cls_str
+                        )
                     except UnknownClassException:
                         raise ValueError()
                 except ValueError:
@@ -308,16 +321,21 @@ class DataBuilder(object):
             self.xd.add_sequence(seq)
 
 
-
-
-
 class UnknownClassException(Exception):
     pass
 
 
 class Data(object):
-    attrs_to_save = ['sequences', 'vocab', 'classes', 'slots',
-                     'slot_groups', 'stats', 'score_bins', 'tagged']
+    attrs_to_save = [
+        'sequences',
+        'vocab',
+        'classes',
+        'slots',
+        'slot_groups',
+        'stats',
+        'score_bins',
+        'tagged'
+    ]
 
     null_class = '_null_'
     slots = None

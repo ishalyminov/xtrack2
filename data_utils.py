@@ -38,10 +38,7 @@ def parse_slots_and_slot_groups(args):
 
 def import_dstc_data(out_dir, dataset):
     input_dir = data_directory
-    flist = os.path.join(
-        dstc45_config_dir,
-        'dstc4_%s.flist' % dataset
-    )
+    flist = os.path.join(dstc45_config_dir, 'dstc4_%s.flist' % dataset)
     import_dstc45.import_dstc(
         data_dir=input_dir,
         out_dir=out_dir,
@@ -59,13 +56,14 @@ def prepare_experiment(
     ontology,
     skip_dstc_import_step,
     builder_opts,
-    builder_type
+    builder_type,
+    in_datasets
 ):
     e_root = os.path.join(experiment_directory, 'xtrack/%s' % experiment_name)
     debug_dir = os.path.join(e_root, 'debug')
 
     based_on = None
-    for dataset in ['train', 'dev', 'test']:
+    for dataset in in_datasets:
         out_dir = os.path.join(e_root, dataset)
         if not skip_dstc_import_step:
             import_dstc_data(out_dir, dataset)

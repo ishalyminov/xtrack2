@@ -59,7 +59,9 @@ def import_dstc(data_dir, out_dir, flist, use_stringified_system_acts):
             out_dialog.add_message(
                 [(msg, 0.0)],
                 state,
-                actor_id
+                actor_id,
+                utterance.segment_topic,
+                utterance.segment_bio
             )
 
         with open(os.path.join(out_dir, "%d.json" % (i,)), "w") as f_out:
