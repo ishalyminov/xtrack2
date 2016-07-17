@@ -50,9 +50,11 @@ class DataBuilderBaseline(data.DataBuilder):
         last_state = None
 
         features = None
-        for msgs, state, actor in zip(dialog.messages,
-                                      dialog.states,
-                                      dialog.actors):
+        for msgs, state, actor in zip(
+                dialog.messages,
+                dialog.states,
+                dialog.actors
+        ):
             actor_is_system = actor == data_model.Dialog.ACTOR_SYSTEM
 
             if actor_is_system:
@@ -80,8 +82,12 @@ class DataBuilderBaseline(data.DataBuilder):
             tokens2 = zip(tokens, tokens[1:])
             tokens3 = [] #zip(tokens, tokens[1:], tokens[2:])
 
-            features.update(self._tokens_to_features(tokens + tokens2 +
-                                                     tokens3, msg_score))
+            features.update(
+                self._tokens_to_features(
+                    tokens + tokens2 + tokens3,
+                    msg_score
+                )
+            )
 
         return features
 
@@ -94,8 +100,12 @@ class DataBuilderBaseline(data.DataBuilder):
             tokens2 = zip(tokens, tokens[1:])
             tokens3 = [] # zip(tokens, tokens[1:], tokens[2:])
 
-            features.update(self._tokens_to_features(tokens + tokens2 +
-                                                     tokens3, msg_score))
+            features.update(
+                self._tokens_to_features(
+                    tokens + tokens2 + tokens3,
+                    msg_score
+                )
+            )
 
 
         return features

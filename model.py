@@ -18,18 +18,22 @@ class Model(NeuralModel):
             for val, val_ndx in sorted(vals.iteritems(), key=lambda x: x[1]):
                 logging.info('    - %s (%d)' % (val, val_ndx))
 
-    def __init__(self, slots, slot_classes, emb_size, no_train_emb,
-                 x_include_score, x_include_token_ftrs, x_include_mlp,
-                 n_input_tokens, n_input_score_bins, n_cells,
-                 rnn_n_layers,
-                 lstm_peepholes, lstm_bidi, opt_type,
-                 oclf_n_hidden, oclf_n_layers, oclf_activation,
-                 debug, p_drop,
-                 init_emb_from, vocab,
-                 input_n_layers, input_n_hidden, input_activation,
-                 token_features, token_supervision,
-                 momentum, enable_branch_exp, l1, l2, build_train=True):
-        args = Model.__init__.func_code.co_varnames[:Model.__init__.func_code.co_argcount]
+    def __init__(
+        self, slots, slot_classes, emb_size, no_train_emb,
+        x_include_score, x_include_token_ftrs, x_include_mlp,
+        n_input_tokens, n_input_score_bins, n_cells,
+        rnn_n_layers,
+        lstm_peepholes, lstm_bidi, opt_type,
+        oclf_n_hidden, oclf_n_layers, oclf_activation,
+        debug, p_drop,
+        init_emb_from, vocab,
+        input_n_layers, input_n_hidden, input_activation,
+        token_features, token_supervision,
+        momentum, enable_branch_exp, l1, l2, build_train=True
+    ):
+        args = Model.__init__.func_code.co_varnames[
+            :Model.__init__.func_code.co_argcount
+        ]
         self.init_args = {}
         for arg in args:
             if arg != 'self':
@@ -49,49 +53,50 @@ class Model(NeuralModel):
 
         x = T.imatrix()
         input_args = [x]
-        input_token_layer = Embedding(name="emb",
-                                      size=emb_size,
-                                      n_features=n_input_tokens,
-                                      input=x,
-                                      static=no_train_emb)
+        input_token_layer = Embedding(
+            name="emb",
+            size=emb_size,
+            n_features=n_input_tokens,
+            input=x,
+            static=no_train_emb
+        )
         if init_emb_from:
             input_token_layer.init_from(init_emb_from, vocab)
-            logging.info('Initializing token embeddings from: %s'
-                         % init_emb_from)
+            logging.info(
+                'Initializing token embeddings from: %s' % init_emb_from
+            )
         else:
             logging.info('Initializing token embedding randomly.')
         self.input_emb = input_token_layer.wv
-
         prev_layer = input_token_layer
+        input_layers = [input_token_layer]
 
-
-
-        input_layers = [
-            input_token_layer
-        ]
         if x_include_score:
             x_score = tt.imatrix()
-            input_score_layer = Embedding(name="emb_score",
-                                          size=emb_size,
-                                          n_features=n_input_score_bins,
-                                          input=x_score)
+            input_score_layer = Embedding(
+                name="emb_score",
+                size=emb_size,
+                n_features=n_input_score_bins,
+                input=x_score
+            )
             input_layers.append(input_score_layer)
-
             input_args.append(x_score)
 
         if x_include_token_ftrs:
             token_n_features = len(token_features.values()[0])
-            input_token_features_layer = Embedding(name="emb_ftr",
-                                                   size=token_n_features,
-                                                   n_features=n_input_tokens,
-                                                   input=x,
-                                                   static=True)
+            input_token_features_layer = Embedding(
+                name="emb_ftr",
+                size=token_n_features,
+                n_features=n_input_tokens,
+                input=x,
+                static=True
+            )
             input_token_features_layer.init_from_dict(token_features)
-
-            ftrs_to_emb = Dense(name='ftr2emb',
-                                size=emb_size,
-                                activation='linear')
-                                # FIX: p_drop=p_drop)
+            ftrs_to_emb = Dense(
+                name='ftr2emb',
+                size=emb_size,
+                activation='linear'
+            )
             ftrs_to_emb.connect(input_token_features_layer)
             input_layers.append(ftrs_to_emb)
 
@@ -99,31 +104,38 @@ class Model(NeuralModel):
         prev_layer = sum_layer
 
         if input_n_layers > 0:
-            input_transform = MLP([input_n_hidden  ] * input_n_layers,
-                                  [input_activation] * input_n_layers,
-                                  p_drop=p_drop)
+            input_transform = MLP(
+                [input_n_hidden  ] * input_n_layers,
+                [input_activation] * input_n_layers,
+                p_drop=p_drop
+            )
             input_transform.connect(prev_layer)
             prev_layer = input_transform
 
         if token_supervision:
-            slot_value_pred = MLP([len(slots) * 2], ['sigmoid'],
-                                  p_drop=[p_drop], name='ts')
+            slot_value_pred = MLP(
+                [len(slots) * 2],
+                ['sigmoid'     ],
+                p_drop=[p_drop],
+                name='ts'
+            )
             slot_value_pred.connect(prev_layer)
 
             y_tokens_label = tt.itensor3()
             token_supervision_loss_layer = TokenSupervisionLossLayer()
-            token_supervision_loss_layer.connect(slot_value_pred, y_tokens_label)
+            token_supervision_loss_layer.connect(
+                slot_value_pred,
+                y_tokens_label
+            )
 
             if debug:
-                self._token_supervision_loss = theano.function(input_args + [
-                    y_tokens_label], token_supervision_loss_layer.output())
-
+                self._token_supervision_loss = theano.function(
+                    input_args + [y_tokens_label],
+                    token_supervision_loss_layer.output()
+                )
         else:
             token_supervision_loss_layer = None
             y_tokens_label = None
-
-
-
 
         logging.info('There are %d input layers.' % input_n_layers)
 
@@ -135,10 +147,12 @@ class Model(NeuralModel):
         mlp_params = []
         for slot in slots:
             n_classes = len(slot_classes[slot])
-            slot_mlp = MLP([oclf_n_hidden  ] * oclf_n_layers + [n_classes],
-                           [oclf_activation] * oclf_n_layers + ['softmax'],
-                           [0.0            ] * oclf_n_layers + [0.0      ],
-                           name="mlp_%s" % slot)
+            slot_mlp = MLP(
+                [oclf_n_hidden  ] * oclf_n_layers + [n_classes],
+                [oclf_activation] * oclf_n_layers + ['softmax'],
+                [0.0            ] * oclf_n_layers + [0.0      ],
+                name="mlp_%s" % slot
+            )
             slot_mlp.connect(h_t_layer)
             mlps.append(slot_mlp)
             mlp_params.extend(slot_mlp.get_params())
@@ -148,56 +162,60 @@ class Model(NeuralModel):
             # Forward LSTM layer.
             logging.info('Creating LSTM layer with %d neurons.' % (n_cells))
             if x_include_mlp:
-                f_lstm_layer = LstmWithMLP(name="flstm_%d" % i,
-                                       size=n_cells,
-                                       seq_output=True,
-                                       out_cells=False,
-                                       peepholes=lstm_peepholes,
-                                       p_drop=p_drop,
-                                       enable_branch_exp=enable_branch_exp,
-                                       mlps=mlps)
-            else:
-                f_lstm_layer = LstmRecurrent(name="flstm_%d" % i,
-                                       size=n_cells,
-                                       seq_output=True,
-                                       out_cells=False,
-                                       peepholes=lstm_peepholes,
-                                       p_drop=p_drop,
-                                       enable_branch_exp=enable_branch_exp
+                f_lstm_layer = LstmWithMLP(
+                    name="flstm_%d" % i,
+                    size=n_cells,
+                    seq_output=True,
+                    out_cells=False,
+                    peepholes=lstm_peepholes,
+                    p_drop=p_drop,
+                    enable_branch_exp=enable_branch_exp,
+                    mlps=mlps
                 )
-
+            else:
+                f_lstm_layer = LstmRecurrent(
+                    name="flstm_%d" % i,
+                    size=n_cells,
+                    seq_output=True,
+                    out_cells=False,
+                    peepholes=lstm_peepholes,
+                    p_drop=p_drop,
+                    enable_branch_exp=enable_branch_exp
+                )
             f_lstm_layer.connect(prev_layer)
 
-
-
-
-
             if lstm_bidi:
-                b_lstm_layer = LstmRecurrent(name="blstm_%d" % i,
-                                       size=n_cells,
-                                       seq_output=True,
-                                       out_cells=False,
-                                       backward=True,
-                                       peepholes=lstm_peepholes,
-                                       p_drop=p_drop,
-                                       enable_branch_exp=enable_branch_exp)
+                b_lstm_layer = LstmRecurrent(
+                    name="blstm_%d" % i,
+                    size=n_cells,
+                    seq_output=True,
+                    out_cells=False,
+                    backward=True,
+                    peepholes=lstm_peepholes,
+                    p_drop=p_drop,
+                    enable_branch_exp=enable_branch_exp
+                )
                 b_lstm_layer.connect(prev_layer)
-
-                lstm_zip = ZipLayer(concat_axis=2, layers=[f_lstm_layer,
-                                                         b_lstm_layer])
+                lstm_zip = ZipLayer(
+                    concat_axis=2,
+                    layers=[f_lstm_layer, b_lstm_layer]
+                )
                 prev_layer = lstm_zip
                 if debug:
-                    self._lstm_output = theano.function(input_args,
-                                                   [prev_layer.output(),
-                                                    f_lstm_layer.output(),
-                                                    b_lstm_layer.output()])
+                    self._lstm_output = theano.function(
+                        input_args,
+                        [
+                            prev_layer.output(),
+                            f_lstm_layer.output(),
+                            b_lstm_layer.output()
+                        ]
+                    )
             else:
-
                 if debug:
-                    self._lstm_output = theano.function(input_args,
-                                                        [prev_layer.output(),
-                                                         f_lstm_layer.output()])
-
+                    self._lstm_output = theano.function(
+                        input_args,
+                        [prev_layer.output(), f_lstm_layer.output()]
+                    )
                 prev_layer = f_lstm_layer
 
         assert prev_layer is not None
@@ -218,14 +236,18 @@ class Model(NeuralModel):
             logging.info('Building output classifier for %s.' % slot)
             n_classes = len(slot_classes[slot])
             if oclf_n_layers > 0:
-                slot_mlp = MLP([oclf_n_hidden  ] * oclf_n_layers,
-                               [oclf_activation] * oclf_n_layers,
-                               [p_drop         ] * oclf_n_layers,
-                               name="mlp_%s" % slot)
-                #name="mlp_%s" % slot, init=inits.copy(mlp_params))
+                slot_mlp = MLP(
+                    [oclf_n_hidden  ] * oclf_n_layers,
+                    [oclf_activation] * oclf_n_layers,
+                    [p_drop         ] * oclf_n_layers,
+                    name="mlp_%s" % slot
+                )
                 slot_mlp.connect(cpt)
 
-            slot_softmax = BiasedSoftmax(name='softmax_%s' % slot, size=n_classes)
+            slot_softmax = BiasedSoftmax(
+                name='softmax_%s' % slot,
+                size=n_classes
+            )
             if oclf_n_layers > 0:
                 slot_softmax.connect(slot_mlp)
             else:
@@ -249,10 +271,9 @@ class Model(NeuralModel):
         n_params = sum(p.get_value().size for p in params)
         logging.info('This model has %d parameters:' % n_params)
         for param in sorted(params, key=lambda x: x.name):
-            logging.info('  - %20s: %10d' % (param.name, param.get_value(
-
-            ).size, ))
-
+            logging.info(
+                '  - %20s: %10d' % (param.name, param.get_value().size, )
+            )
         cost_value = cost.output(dropout_active=True)
 
         lr = tt.scalar('lr')
@@ -264,15 +285,18 @@ class Model(NeuralModel):
         elif opt_type == "sgd":
             updater = updates.SGD(lr=lr, clipnorm=clipnorm, regularizer=reg)
         elif opt_type == "rmsprop":
-            updater = updates.RMSprop(lr=lr, clipnorm=clipnorm, regularizer=reg)  #, regularizer=reg)
+            updater = updates.RMSprop(lr=lr, clipnorm=clipnorm, regularizer=reg)
         elif opt_type == "adam":
-            #reg = updates.Regularizer(maxnorm=5.0)
-            updater = updates.Adam(lr=lr, clipnorm=clipnorm, regularizer=reg)  #,
-            # regularizer=reg)
+            updater = updates.Adam(lr=lr, clipnorm=clipnorm, regularizer=reg)
         elif opt_type == "momentum":
-            updater = updates.Momentum(lr=lr, momentum=momentum, clipnorm=clipnorm, regularizer=reg)
+            updater = updates.Momentum(
+                lr=lr,
+                momentum=momentum,
+                clipnorm=clipnorm,
+                regularizer=reg
+            )
         else:
-            raise Exception("Unknonw opt.")
+            raise Exception("Unknown opt.")
 
         loss_args = list(input_args)
         loss_args += [y_seq_id, y_time]
@@ -289,8 +313,11 @@ class Model(NeuralModel):
 
             logging.info('Preparing %s train function.' % opt_type)
             t = time.time()
-            self._train = theano.function(train_args, [cost_value, update_ratio],
-                                          updates=model_updates)
+            self._train = theano.function(
+                train_args,
+                [cost_value, update_ratio],
+                updates=model_updates
+            )
             logging.info('Preparation done. Took: %.1f' % (time.time() - t))
 
         self._loss = theano.function(loss_args, cost_value)

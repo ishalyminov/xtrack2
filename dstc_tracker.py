@@ -115,20 +115,15 @@ class XTrack2DSTCTracker(object):
                 goals_correct[group] &= raw_labels[slot] == label[slot]
 
         goal_labels = {
-            slot: {pred[slot]: 1.0}  #raw_label_probs[slot]}
+            slot: [pred[slot]]  #raw_label_probs[slot]}
             for slot in self.data.slots
             if pred[slot] != self.data.null_class \
             and slot in self.ontology.tagsets.get(segment_id, {}).keys() \
             and pred[slot] in self.ontology.tagsets.get(segment_id, {}).get(slot, [])
         }
 
-        goal_labels_debug = {
-            slot: goal_labels[slot].keys()[0]
-            for slot in goal_labels
-        }
         return { # the correct thing would be: 'frame_label': {slot: probs}
             'frame_label': goal_labels,
-            "debug": goal_labels_debug
         }, goals_correct
 
     def _label_empty(self, lbl):
@@ -192,7 +187,7 @@ class XTrack2DSTCTracker(object):
                     segment_id
                 )
                 if dialog['tags']:
-                    self._replace_tags(out, dialog['tags'])
+                    dialog['tags'] = self._replace_tags(out, dialog['tags'])
                 #self.track_log.write(json.dumps(out))
                 #self.track_log.write("\n")
                 if segment_bio == 'O':
@@ -234,27 +229,28 @@ class XTrack2DSTCTracker(object):
         return tuple(res)
 
     def _replace_tags(self, out, tags):
+        new_tags = {}
         for slot, values in out['frame_label'].iteritems():
-            self._replace_tags_for_slot(slot, tags, values)
+            new_tags[slot] = self._replace_tags_for_slot(slot, tags, values)
+            return new_tags
 
     def _replace_tags_for_slot(self, slot, tags, values):
-        new_res = {}
-        for slot_val, p in values.iteritems():
+        new_res = []
+        for slot_val in values:
             if slot_val.startswith('#%s' % slot):
                 tag_id = int(slot_val.replace('#%s' % slot, ''))
                 try:
                     tag_list = tags.get(slot, [])
                     tag_val = tag_list[tag_id]
                     tag_val = self.tagger.denormalize_slot_value(tag_val)
-                    new_res[tag_val] = p
+                    new_res.append(tag_val)
                 except IndexError:
                     # This happens when the we predict a tag that
                     # does not exist.
-                    new_res['_null_'] = p
+                    new_res.append('_null_')
             else:
-                new_res[slot_val] = p
-        values.clear()
-        values.update(new_res)
+                new_res.append(slot_val)
+        return new_res
 
 
 def main(

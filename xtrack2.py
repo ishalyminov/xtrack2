@@ -362,20 +362,22 @@ def get_extreme_examples(mb_loss, minibatches, xtd_t):
     return (worst_examples, worst_mb_ndxs), (best_examples, best_mb_ndxs)
 
 
-def main(args_lst,
-         eid, experiment_path, out, valid_after,
-         load_params, save_params,
-         debug, track_log,
-         n_cells, emb_size, x_include_score, no_train_emb,
-         n_epochs, lr, opt_type, momentum,
-         mb_size, mb_mult_data,
-         oclf_n_hidden, oclf_n_layers, oclf_activation,
-         rnn_n_layers,
-         lstm_peepholes, lstm_bidi,
-         p_drop, init_emb_from, input_n_layers, input_n_hidden,
-         input_activation,
-         eval_on_full_train, x_include_token_ftrs, enable_branch_exp, l1, l2,
-         x_include_mlp, enable_token_supervision, model_type):
+def main(
+    args_lst,
+    eid, experiment_path, out, valid_after,
+    load_params, save_params,
+    debug, track_log,
+    n_cells, emb_size, x_include_score, no_train_emb,
+    n_epochs, lr, opt_type, momentum,
+    mb_size, mb_mult_data,
+    oclf_n_hidden, oclf_n_layers, oclf_activation,
+    rnn_n_layers,
+    lstm_peepholes, lstm_bidi,
+    p_drop, init_emb_from, input_n_layers, input_n_hidden,
+    input_activation,
+    eval_on_full_train, x_include_token_ftrs, enable_branch_exp, l1, l2,
+    x_include_mlp, enable_token_supervision, model_type
+):
 
     output_dir = init_env(out)
     mon_train = TrainingStats()
@@ -386,7 +388,6 @@ def main(args_lst,
         mon_extreme_examples=mon_extreme_examples.data,
         args=args_lst
     )
-
     logging.info('XTrack has been started.')
     logging.info('GIT rev: %s' % get_git_revision_hash())
     logging.info('Output dir: %s' % output_dir)
@@ -414,89 +415,92 @@ def main(args_lst,
 
     logging.info('Building model: %s' % model_type)
     if model_type == 'lstm':
-        model = Model(slots=slots,
-                      slot_classes=xtd_t.classes,
-                      emb_size=emb_size,
-                      no_train_emb=no_train_emb,
-                      x_include_score=x_include_score,
-                      x_include_token_ftrs=x_include_token_ftrs,
-                      x_include_mlp=x_include_mlp,
-                      n_input_score_bins=n_input_score_bins,
-                      n_cells=n_cells,
-                      n_input_tokens=n_input_tokens,
-                      oclf_n_hidden=oclf_n_hidden,
-                      oclf_n_layers=oclf_n_layers,
-                      oclf_activation=oclf_activation,
-                      debug=debug,
-                      rnn_n_layers=rnn_n_layers,
-                      lstm_peepholes=lstm_peepholes,
-                      lstm_bidi=lstm_bidi,
-                      opt_type=opt_type,
-                      momentum=momentum,
-                      p_drop=p_drop,
-                      init_emb_from=init_emb_from,
-                      vocab=xtd_t.vocab,
-                      input_n_layers=input_n_layers,
-                      input_n_hidden=input_n_hidden,
-                      input_activation=input_activation,
-                      token_features=None,
-                      enable_branch_exp=enable_branch_exp,
-                      token_supervision=enable_token_supervision,
-                      l1=l1,
-                      l2=l2
+        model = Model(
+            slots=slots,
+            slot_classes=xtd_t.classes,
+            emb_size=emb_size,
+            no_train_emb=no_train_emb,
+            x_include_score=x_include_score,
+            x_include_token_ftrs=x_include_token_ftrs,
+            x_include_mlp=x_include_mlp,
+            n_input_score_bins=n_input_score_bins,
+            n_cells=n_cells,
+            n_input_tokens=n_input_tokens,
+            oclf_n_hidden=oclf_n_hidden,
+            oclf_n_layers=oclf_n_layers,
+            oclf_activation=oclf_activation,
+            debug=debug,
+            rnn_n_layers=rnn_n_layers,
+            lstm_peepholes=lstm_peepholes,
+            lstm_bidi=lstm_bidi,
+            opt_type=opt_type,
+            momentum=momentum,
+            p_drop=p_drop,
+            init_emb_from=init_emb_from,
+            vocab=xtd_t.vocab,
+            input_n_layers=input_n_layers,
+            input_n_hidden=input_n_hidden,
+            input_activation=input_activation,
+            token_features=None,
+            enable_branch_exp=enable_branch_exp,
+            token_supervision=enable_token_supervision,
+            l1=l1,
+            l2=l2
         )
     elif model_type == 'conv':
-        model = SimpleConvModel(slots=slots,
-                      slot_classes=xtd_t.classes,
-                      emb_size=emb_size,
-                      no_train_emb=no_train_emb,
-                      x_include_score=x_include_score,
-                      x_include_token_ftrs=x_include_token_ftrs,
-                      x_include_mlp=x_include_mlp,
-                      n_input_score_bins=n_input_score_bins,
-                      n_cells=n_cells,
-                      n_input_tokens=n_input_tokens,
-                      oclf_n_hidden=oclf_n_hidden,
-                      oclf_n_layers=oclf_n_layers,
-                      oclf_activation=oclf_activation,
-                      debug=debug,
-                      rnn_n_layers=rnn_n_layers,
-                      lstm_peepholes=lstm_peepholes,
-                      lstm_bidi=lstm_bidi,
-                      opt_type=opt_type,
-                      momentum=momentum,
-                      p_drop=p_drop,
-                      init_emb_from=init_emb_from,
-                      vocab=xtd_t.vocab,
-                      input_n_layers=input_n_layers,
-                      input_n_hidden=input_n_hidden,
-                      input_activation=input_activation,
-                      token_features=None,
-                      enable_branch_exp=enable_branch_exp,
-                      token_supervision=enable_token_supervision,
-                      l1=l1,
-                      l2=l2
+        model = SimpleConvModel(
+            slots=slots,
+            slot_classes=xtd_t.classes,
+            emb_size=emb_size,
+            no_train_emb=no_train_emb,
+            x_include_score=x_include_score,
+            x_include_token_ftrs=x_include_token_ftrs,
+            x_include_mlp=x_include_mlp,
+            n_input_score_bins=n_input_score_bins,
+            n_cells=n_cells,
+            n_input_tokens=n_input_tokens,
+            oclf_n_hidden=oclf_n_hidden,
+            oclf_n_layers=oclf_n_layers,
+            oclf_activation=oclf_activation,
+            debug=debug,
+            rnn_n_layers=rnn_n_layers,
+            lstm_peepholes=lstm_peepholes,
+            lstm_bidi=lstm_bidi,
+            opt_type=opt_type,
+            momentum=momentum,
+            p_drop=p_drop,
+            init_emb_from=init_emb_from,
+            vocab=xtd_t.vocab,
+            input_n_layers=input_n_layers,
+            input_n_hidden=input_n_hidden,
+            input_activation=input_activation,
+            token_features=None,
+            enable_branch_exp=enable_branch_exp,
+            token_supervision=enable_token_supervision,
+            l1=l1,
+            l2=l2
         )
     elif model_type == 'baseline':
-        model = BaselineModel(slots=slots,
-                      slot_classes=xtd_t.classes,
-                      oclf_n_hidden=oclf_n_hidden,
-                      oclf_n_layers=oclf_n_layers,
-                      oclf_activation=oclf_activation,
-                      n_cells=n_cells,
-                      debug=debug,
-                      opt_type=opt_type,
-                      momentum=momentum,
-                      p_drop=p_drop,
-                      vocab=xtd_t.vocab,
-                      input_n_layers=input_n_layers,
-                      input_n_hidden=input_n_hidden,
-                      input_activation=input_activation,
-                      token_features=None,
-                      enable_branch_exp=enable_branch_exp,
-                      token_supervision=enable_token_supervision,
-                      l1=l1,
-                      l2=l2
+        model = BaselineModel(
+            slots=slots,
+            slot_classes=xtd_t.classes,
+            oclf_n_hidden=oclf_n_hidden,
+            oclf_n_layers=oclf_n_layers,
+            oclf_activation=oclf_activation,
+            n_cells=n_cells,
+            debug=debug,
+            opt_type=opt_type,
+            momentum=momentum,
+            p_drop=p_drop,
+            vocab=xtd_t.vocab,
+            input_n_layers=input_n_layers,
+            input_n_hidden=input_n_hidden,
+            input_activation=input_activation,
+            token_features=None,
+            enable_branch_exp=enable_branch_exp,
+            token_supervision=enable_token_supervision,
+            l1=l1,
+            l2=l2
         )
     else:
         raise Exception()
@@ -600,8 +604,9 @@ def main(args_lst,
         if (example_cntr - last_valid) >= valid_after:
             inline_print("")
             last_valid = example_cntr
-            params_file = os.path.join(output_dir, 'params.%.10d.p' %
-                                       example_cntr)
+            params_file = os.path.join(
+                output_dir, 'params.%.10d.p' % example_cntr
+            )
             logging.info('Saving parameters: %s' % params_file)
             model.save_params(params_file)
 
@@ -617,15 +622,22 @@ def main(args_lst,
                              % (group, accuracy * 100))
                 best_track_acc[group] = max(accuracy, best_track_acc[group])
             for group in sorted(track_score, key=lambda g: g):
-                logging.info('Best acc %15s:  %10.2f %%'
-                             % (group, best_track_acc[group] * 100))
+                logging.info(
+                    'Best acc %15s:  %10.2f %%' % (
+                        group,
+                        best_track_acc[group] * 100
+                    )
+                )
             logging.info('Train loss:         %10.2f' % stats.mean('loss'))
             logging.info('Mean update ratio:  %10.6f' % update_ratio)
             logging.info('Mean mb time:       %10.4f' % stats.mean('time'))
-            logging.info('Epoch:              %10d (%d mb remain)' % (epoch,
-                                                                     len(mb_to_go)))
+            logging.info(
+                'Epoch:              %10d (%d mb remain)' % (
+                    epoch,
+                    len(mb_to_go)
+                )
+            )
             logging.info('Example:            %10d' % example_cntr)
-
 
             mon_train.insert(
                 time=time.time(),
@@ -641,8 +653,10 @@ def main(args_lst,
             stats_path = os.path.join(output_dir, 'stats.json')
             with open(stats_path, 'w') as f_out:
                 json.dump(stats_obj, f_out)
-                os.system('ln -f -s "%s" "xtrack2_vis/stats.json"' %
-                          os.path.join('..', stats_path))
+                os.system(
+                    'ln -f -s "%s" "xtrack2_vis/stats.json"' %
+                    os.path.join('..', stats_path)
+                )
 
             stats = TrainingStats()
 

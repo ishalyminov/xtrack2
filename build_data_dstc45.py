@@ -10,7 +10,6 @@ def main(skip_dstc_import_step, builder_type, dataset_names):
     ONTOLOGY = build_unified_ontology(
         ontology_reader.OntologyReader(dstc45_ontology_filename)
     )
-
     dataset_names = [dataset.strip() for dataset in dataset_names.split(',')]
     data_utils.prepare_experiment(
         experiment_name='e2_tagged_%s' % builder_type,

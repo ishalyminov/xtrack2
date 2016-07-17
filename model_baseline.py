@@ -1,4 +1,3 @@
-import inspect
 import logging
 import time
 
@@ -18,16 +17,19 @@ class BaselineModel(NeuralModel):
             for val, val_ndx in sorted(vals.iteritems(), key=lambda x: x[1]):
                 logging.info('    - %s (%d)' % (val, val_ndx))
 
-    def __init__(self, slots, slot_classes, opt_type,
-                 oclf_n_hidden, oclf_n_layers, oclf_activation,
-                 n_cells,
-                 debug, p_drop,
-                 vocab,
-                 input_n_layers, input_n_hidden, input_activation,
-                 token_features, token_supervision,
-                 momentum, enable_branch_exp, l1, l2, build_train=True):
+    def __init__(
+        self, slots, slot_classes, opt_type,
+        oclf_n_hidden, oclf_n_layers, oclf_activation,
+        n_cells,
+        debug, p_drop,
+        vocab,
+        input_n_layers, input_n_hidden, input_activation,
+        token_features, token_supervision,
+        momentum, enable_branch_exp, l1, l2, build_train=True
+    ):
         args = BaselineModel.__init__.func_code.co_varnames[
-               :BaselineModel.__init__.func_code.co_argcount]
+            :BaselineModel.__init__.func_code.co_argcount
+        ]
         self.init_args = {}
         for arg in args:
             if arg != 'self':
@@ -49,9 +51,11 @@ class BaselineModel(NeuralModel):
         prev_layer = input_layer
 
         if input_n_layers > 0:
-            input_transform = MLP([input_n_hidden  ] * input_n_layers,
-                                  [input_activation] * input_n_layers,
-                                  p_drop=p_drop)
+            input_transform = MLP(
+                [input_n_hidden  ] * input_n_layers,
+                [input_activation] * input_n_layers,
+                p_drop=p_drop
+            )
             input_transform.connect(prev_layer)
             prev_layer = input_transform
 
@@ -62,13 +66,14 @@ class BaselineModel(NeuralModel):
 
 
         logging.info('Creating LSTM layer with %d neurons.' % (n_cells))
-        f_lstm_layer = LstmRecurrent(name="lstm",
-                               size=n_cells,
-                               seq_output=True,
-                               out_cells=False,
-                               peepholes=False,
-                               p_drop=p_drop,
-                               enable_branch_exp=enable_branch_exp
+        f_lstm_layer = LstmRecurrent(
+            name="lstm",
+            size=n_cells,
+            seq_output=True,
+            out_cells=False,
+            peepholes=False,
+            p_drop=p_drop,
+            enable_branch_exp=enable_branch_exp
         )
         f_lstm_layer.connect(prev_layer)
 
@@ -88,10 +93,12 @@ class BaselineModel(NeuralModel):
         for slot in slots:
             logging.info('Building output classifier for %s.' % slot)
             n_classes = len(slot_classes[slot])
-            slot_mlp = MLP([oclf_n_hidden  ] * oclf_n_layers + [n_classes],
-                           [oclf_activation] * oclf_n_layers + ['softmax'],
-                           [p_drop         ] * oclf_n_layers + [0.0      ],
-                           name="mlp_%s" % slot)
+            slot_mlp = MLP(
+                [oclf_n_hidden  ] * oclf_n_layers + [n_classes],
+                [oclf_activation] * oclf_n_layers + ['softmax'],
+                [p_drop         ] * oclf_n_layers + [0.0      ],
+                name="mlp_%s" % slot
+            )
             slot_mlp.connect(cpt)
             predictions.append(slot_mlp.output(dropout_active=False))
 
@@ -108,9 +115,9 @@ class BaselineModel(NeuralModel):
         n_params = sum(p.get_value().size for p in params)
         logging.info('This model has %d parameters:' % n_params)
         for param in sorted(params, key=lambda x: x.name):
-            logging.info('  - %20s: %10d' % (param.name, param.get_value(
-
-            ).size, ))
+            logging.info(
+                '  - %20s: %10d' % (param.name, param.get_value().size)
+            )
 
         cost_value = cost.output(dropout_active=True)
 
@@ -123,13 +130,17 @@ class BaselineModel(NeuralModel):
         elif opt_type == "sgd":
             updater = updates.SGD(lr=lr, clipnorm=clipnorm, regularizer=reg)
         elif opt_type == "rmsprop":
-            updater = updates.RMSprop(lr=lr, clipnorm=clipnorm, regularizer=reg)  #, regularizer=reg)
+            updater = updates.RMSprop(lr=lr, clipnorm=clipnorm, regularizer=reg)
         elif opt_type == "adam":
             #reg = updates.Regularizer(maxnorm=5.0)
-            updater = updates.Adam(lr=lr, clipnorm=clipnorm, regularizer=reg)  #,
-            # regularizer=reg)
+            updater = updates.Adam(lr=lr, clipnorm=clipnorm, regularizer=reg)
         elif opt_type == "momentum":
-            updater = updates.Momentum(lr=lr, momentum=momentum, clipnorm=clipnorm, regularizer=reg)
+            updater = updates.Momentum(
+                lr=lr,
+                momentum=momentum,
+                clipnorm=clipnorm,
+                regularizer=reg
+            )
         else:
             raise Exception("Unknonw opt.")
 
@@ -145,8 +156,11 @@ class BaselineModel(NeuralModel):
 
             logging.info('Preparing %s train function.' % opt_type)
             t = time.time()
-            self._train = theano.function(train_args, [cost_value, update_ratio],
-                                          updates=model_updates)
+            self._train = theano.function(
+                train_args,
+                [cost_value, update_ratio],
+                updates=model_updates
+            )
             logging.info('Preparation done. Took: %.1f' % (time.time() - t))
 
         self._loss = theano.function(loss_args, cost_value)
@@ -212,10 +226,4 @@ class BaselineModel(NeuralModel):
         data.extend([y_seq_id, y_time])
         if with_labels:
             data.extend(y_labels)
-
         return tuple(data)
-
-
-
-
-

@@ -1,3 +1,4 @@
+import codecs
 import collections
 import json
 import logging
@@ -77,12 +78,14 @@ class DataBuilder(object):
             fname_dump_text = '/dev/null'
             fname_dump_cca = '/dev/null'
 
-        self.f_dump_text = open(fname_dump_text, 'w')
-        self.f_dump_cca = open(fname_dump_cca, 'w')
+        self.f_dump_text = codecs.getwriter('utf-8')(open(fname_dump_text, 'w'))
+        self.f_dump_cca = codecs.getwriter('utf-8')(open(fname_dump_cca, 'w'))
 
-    def __init__(self, slots, slot_groups, based_on, include_base_seqs,
-              oov_ins_p, word_drop_p, include_system_utterances, nth_best,
-              score_bins, debug_dir, tagged, ontology, no_label_weight):
+    def __init__(
+        self, slots, slot_groups, based_on, include_base_seqs,
+        oov_ins_p, word_drop_p, include_system_utterances, nth_best,
+        score_bins, debug_dir, tagged, ontology, no_label_weight
+    ):
         self.slots = slots
         self.slot_groups = slot_groups
         self.score_bins = score_bins
@@ -212,8 +215,7 @@ class DataBuilder(object):
         self._append_label_to_seq(msg_score, seq, state, topic_id, topic_bio)
 
     def _dump_msg_info(
-            self, last_state, msg_score, msg_score_bin,
-            state, token_seq, true_msg
+        self, last_state, msg_score, msg_score_bin, state, token_seq, true_msg
     ):
         self.f_dump_text.write(
             ("%2.2f %d  " % (msg_score, msg_score_bin)) +
@@ -269,7 +271,14 @@ class DataBuilder(object):
         else:
             return token
 
-    def _append_label_to_seq(self, msg_score, seq, state, segment_id, segment_bio):
+    def _append_label_to_seq(
+        self,
+        msg_score,
+        seq,
+        state,
+        segment_id,
+        segment_bio
+    ):
         label = {
             'time': len(seq.data) - 1,
             'score': np.exp(msg_score),
@@ -494,7 +503,7 @@ class Data(object):
 
     @classmethod
     def load(cls, in_file):
-        with open(in_file, 'r') as f_in:
+        with codecs.getreader('utf-8')(open(in_file, 'r')) as f_in:
             data = json.load(f_in)
 
         xtd = Data()

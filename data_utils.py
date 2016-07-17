@@ -43,7 +43,7 @@ def import_dstc_data(out_dir, dataset):
         data_dir=input_dir,
         out_dir=out_dir,
         flist=flist,
-        use_stringified_system_acts=True
+        use_stringified_system_acts=False
     )
     return out_dir
 
