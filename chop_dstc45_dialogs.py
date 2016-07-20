@@ -4,10 +4,7 @@ import json
 import os
 import random
 import shutil
-import sys
-
 import itertools
-
 import collections
 
 DIALOG_FILES = ['log.json', 'label.json', 'translations.json']
@@ -15,10 +12,12 @@ DIALOG_LEN_MIN = 10
 DIALOG_LEN_MAX = 30
 
 
-def chop_dialogs(in_src_folder, in_dst_folder):
+def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
     root, dirs, files = os.walk(in_src_folder).next()
     chopped_dialogs_map = collections.defaultdict(lambda: [])
     for dirname in dirs:
+        if dirname not in in_dialogs_to_process:
+            continue
         log, label, translations = map(
             lambda suffix: json.load(
                 codecs.getreader('utf-8')(
@@ -46,13 +45,18 @@ def chop_dialogs(in_src_folder, in_dst_folder):
     return chopped_dialogs_map
 
 
-def chop_dataset_configs(in_chopped_dialogs_map, in_dataset_folder):
+def chop_dataset_configs(
+    in_chopped_dialogs_map,
+    in_dataset_folder,
+    in_dataset_names
+):
     result_folder = os.path.join(in_dataset_folder, 'chopped')
     if os.path.isdir(result_folder):
         shutil.rmtree(result_folder)
     os.makedirs(result_folder)
     for config_file in os.listdir(in_dataset_folder):
-        if not config_file.endswith('flist'):
+        name, ext = os.path.splitext(config_file)
+        if ext != 'flist' or name not in in_dataset_names:
             continue
         modified_config = []
         with open(os.path.join(in_dataset_folder, config_file)) as input:
@@ -118,6 +122,35 @@ def chop_dialog(in_log, in_label, in_translations):
     return result
 
 
+def load_dataset_info(in_dataset_names, in_scripts_config_folder):
+    datasets = {}
+    for name in in_dataset_names:
+        dataset_filename = os.path.join(in_scripts_config_folder, name)
+        with open(dataset_filename) as dataset_file:
+            datasets[name] = dataset_file.readlines()
+    return datasets
+
+
+def main(
+    in_dialogs_folder,
+    in_output_folder,
+    in_dataset_names,
+    in_scripts_config_folder
+):
+    if os.path.isdir(in_output_folder):
+        shutil.rmtree(in_output_folder)
+        os.makedirs(in_output_folder)
+
+    datasets = load_dataset_info(in_dataset_names, in_scripts_config_folder)
+
+    chopped_dialogs_map = chop_dialogs(
+        in_dialogs_folder,
+        in_output_folder,
+        reduce(lambda x, y: x + y, datasets.values(), [])
+    )
+    chop_dataset_configs(chopped_dialogs_map, in_scripts_config_folder)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dialogs_folder', default='data/dstc5')
@@ -134,8 +167,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if os.path.isdir(args.output_folder):
-        shutil.rmtree(args.output_folder)
-        os.makedirs(args.output_folder)
-    chopped_dialogs_map = chop_dialogs(args.dialogs_folder, args.output_folder, scripts_config_folder)
-    chop_dataset_configs(chopped_dialogs_map, scripts_config_folder)
+    main(
+        args.dialogs_folder,
+        args.output_folder,
+        args.dataset_names,
+        args.scripts_config_folder
+    )
