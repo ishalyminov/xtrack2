@@ -56,7 +56,7 @@ def chop_dataset_configs(
     os.makedirs(result_folder)
     for config_file in os.listdir(in_dataset_folder):
         name, ext = os.path.splitext(config_file)
-        if ext != 'flist' or name not in in_dataset_names:
+        if ext != '.flist' or name not in in_dataset_names:
             continue
         modified_config = []
         with open(os.path.join(in_dataset_folder, config_file)) as input:
@@ -126,8 +126,8 @@ def load_dataset_info(in_dataset_names, in_scripts_config_folder):
     datasets = {}
     for name in in_dataset_names:
         dataset_filename = os.path.join(in_scripts_config_folder, name)
-        with open(dataset_filename) as dataset_file:
-            datasets[name] = dataset_file.readlines()
+        with open(dataset_filename + '.flist') as dataset_file:
+            datasets[name] = map(lambda x: x.strip(), dataset_file.readlines())
     return datasets
 
 
@@ -148,7 +148,11 @@ def main(
         in_output_folder,
         reduce(lambda x, y: x + y, datasets.values(), [])
     )
-    chop_dataset_configs(chopped_dialogs_map, in_scripts_config_folder)
+    chop_dataset_configs(
+        chopped_dialogs_map,
+        in_scripts_config_folder,
+        in_dataset_names
+    )
 
 
 if __name__ == '__main__':
@@ -161,7 +165,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_folder', default='data/dstc5_chopped')
     parser.add_argument(
         '--dataset_names',
-        default='train,dev',
+        default='dstc4_train,dstc4_dev',
         help='"train,dev..."'
     )
 
@@ -170,6 +174,6 @@ if __name__ == '__main__':
     main(
         args.dialogs_folder,
         args.output_folder,
-        args.dataset_names,
+        args.dataset_names.split(','),
         args.scripts_config_folder
     )

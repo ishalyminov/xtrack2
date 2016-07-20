@@ -40,7 +40,7 @@ if __name__ == '__main__':
     parser.add_argument('--builder_type', default='xtrack_dstc45')
     parser.add_argument(
         '--dataset_names',
-        default='train,dev,test',
+        default='train,dev',
         help='"name1,name2..."'
     )
 
