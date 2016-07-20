@@ -125,10 +125,7 @@ if __name__ == '__main__':
         '--scripts_config_folder',
         default='dstc5_scripts/config'
     )
-    parser.add_argument(
-        '--output_folder_folder',
-        default='data/dstc5_chopped'
-    )
+    parser.add_argument('--output_folder', default='data/dstc5_chopped')
     parser.add_argument(
         '--dataset_names',
         default='train,dev',
@@ -140,5 +137,5 @@ if __name__ == '__main__':
     if os.path.isdir(args.output_folder):
         shutil.rmtree(args.output_folder)
         os.makedirs(args.output_folder)
-    chopped_dialogs_map = chop_dialogs(sys.argv[1], sys.argv[3])
-    chop_dataset_configs(chopped_dialogs_map, sys.argv[2])
+    chopped_dialogs_map = chop_dialogs(args.dialogs_folder, args.output_folder, scripts_config_folder)
+    chop_dataset_configs(chopped_dialogs_map, scripts_config_folder)
