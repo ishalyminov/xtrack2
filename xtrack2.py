@@ -70,8 +70,9 @@ def print_mb(slots, classes, vocab_rev, mb, prediction):
 
     labels = {}
     pred_id = {}
-    for i, (seq_id, time), lbls in enumerate(zip(zip(y_seq_id, y_time),
-                                              *y_labels)):
+    for i, (seq_id, time), lbls in enumerate(
+            zip(zip(y_seq_id, y_time), *y_labels)
+    ):
         labels[(seq_id, time)] = lbls
         pred_id[(seq_id, time)] = i
 
@@ -728,9 +729,7 @@ def build_argument_parser():
     parser.add_argument(
         '--enable_token_supervision', default=False, action='store_true'
     )
-    parser.add_argument(
-        '--ontology', required=True
-    )
+    parser.add_argument('--ontology', required=True)
 
     return parser
 

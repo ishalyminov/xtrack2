@@ -59,7 +59,7 @@ def init_logging():
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
-    logging.root = logger  #
+    logging.root = logger
 
 
 class XTrack2DSTCTracker(object):
@@ -115,14 +115,14 @@ class XTrack2DSTCTracker(object):
                 goals_correct[group] &= raw_labels[slot] == label[slot]
 
         goal_labels = {
-            slot: [pred[slot]]  #raw_label_probs[slot]}
+            slot: [pred[slot]]
             for slot in self.data.slots
             if pred[slot] != self.data.null_class \
-            and slot in self.ontology.tagsets.get(segment_id, {}).keys() \
-            and pred[slot] in self.ontology.tagsets.get(segment_id, {}).get(slot, [])
+            # and slot in self.ontology.tagsets.get(segment_id, {}).keys() \
+            # and pred[slot] in self.ontology.tagsets.get(segment_id, {}).get(slot, [])
         }
 
-        return { # the correct thing would be: 'frame_label': {slot: probs}
+        return {
             'frame_label': goal_labels,
         }, goals_correct
 

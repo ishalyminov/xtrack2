@@ -106,7 +106,7 @@ class Turn(object):
 
 def parse_dstc5_dialog_state(in_dialog_state):
     return {
-        key: value_list[0]
+        key: '___'.join(sorted(value_list))
         for key, value_list in in_dialog_state.iteritems()
     }
 

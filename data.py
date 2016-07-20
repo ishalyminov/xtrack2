@@ -29,8 +29,6 @@ def get_cca_y(tokens, state, last_state):
     for key in state:
         if state[key] != last_state.get(key):
             res.append("%s_%s" % (key, state[key]))
-
-    #print state, last_state, res
     return " ".join(res)
 
 
@@ -272,12 +270,7 @@ class DataBuilder(object):
             return token
 
     def _append_label_to_seq(
-        self,
-        msg_score,
-        seq,
-        state,
-        segment_id,
-        segment_bio
+        self, msg_score, seq, state, segment_id, segment_bio
     ):
         label = {
             'time': len(seq.data) - 1,
@@ -433,9 +426,12 @@ class Data(object):
     def get_value_index_for_slot(self, slot, slot_value):
         if self.vocab_fixed:
             if not slot_value in self.classes[slot]:
-                raise UnknownClassException()
-            else:
-                res = self.classes[slot][slot_value]
+                # raise UnknownClassException()
+                logging.warning(
+                    'Mapping "{}":"{}" to null_class'.format(slot, slot_value)
+                )
+                slot_value = self.null_class
+            res = self.classes[slot][slot_value]
         else:
             if not slot_value in self.classes[slot]:
                 self.classes[slot][slot_value] = len(self.classes[slot])
@@ -513,5 +509,3 @@ class Data(object):
 
         xtd._finalize_initialization()
         return xtd
-
-

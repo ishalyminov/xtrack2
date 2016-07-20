@@ -37,10 +37,7 @@ if __name__ == '__main__':
         action='store_true',
         default=False
     )
-    parser.add_argument(
-        '--builder_type',
-        default='xtrack_dstc45'
-    )
+    parser.add_argument('--builder_type', default='xtrack_dstc45')
     parser.add_argument(
         '--dataset_names',
         default='train,dev,test',

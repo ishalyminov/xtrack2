@@ -47,36 +47,40 @@ class DataBuilderBaseline(data.DataBuilder):
         pass
 
     def _process_dialog(self, dialog, seq):
-        last_state = None
-
-        features = None
-        for msgs, state, actor in zip(
+        features = {}
+        for msgs, state, actor, topic_id, topic_bio in zip(
                 dialog.messages,
                 dialog.states,
-                dialog.actors
+                dialog.actors,
+                dialog.topic_ids,
+                dialog.topic_bio
         ):
-            actor_is_system = actor == data_model.Dialog.ACTOR_SYSTEM
-
-            if actor_is_system:
-                features = self._extract_features_system(msgs, seq)
+            if actor == data_model.Dialog.ACTOR_SYSTEM:
+                features = self._extract_features(
+                    msgs,
+                    seq,
+                    data_model.Dialog.ACTOR_SYSTEM
+                )
             else:
-                new_features = self._extract_features_user(msgs, seq)
+                new_features = self._extract_features(
+                    msgs,
+                    seq,
+                    data_model.Dialog.ACTOR_USER
+                )
                 features.update(new_features)
 
             true_msg, _ = msgs[0]
 
             seq.data.append(features)
-            self._append_label_to_seq(0.0, seq, state)
+            self._append_label_to_seq(0.0, seq, state, topic_id, topic_bio)
 
             for ftr in features:
                 self.feature_cnts[ftr] += 1
 
-            last_state = state
-
-    def _extract_features_user(self, msgs, seq):
+    def _extract_features(self, msgs, seq, in_actor):
         features = {}
-        for msg, msg_score in msgs[1:]:
-            tokens = self._tokenize_msg(data_model.Dialog.ACTOR_USER, msg)
+        for msg, msg_score in msgs:
+            tokens = self._tokenize_msg(in_actor, msg)
             tokens = [self._tag_token(token, seq) for token in tokens]
 
             tokens2 = zip(tokens, tokens[1:])
@@ -88,25 +92,6 @@ class DataBuilderBaseline(data.DataBuilder):
                     msg_score
                 )
             )
-
-        return features
-
-    def _extract_features_system(self, msgs, seq):
-        features = {}
-        for msg, msg_score in msgs:
-            tokens = self._tokenize_msg(data_model.Dialog.ACTOR_USER, msg)
-            tokens = [self._tag_token(token, seq) for token in tokens]
-
-            tokens2 = zip(tokens, tokens[1:])
-            tokens3 = [] # zip(tokens, tokens[1:], tokens[2:])
-
-            features.update(
-                self._tokens_to_features(
-                    tokens + tokens2 + tokens3,
-                    msg_score
-                )
-            )
-
 
         return features
 
