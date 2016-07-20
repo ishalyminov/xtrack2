@@ -1,3 +1,4 @@
+import argparse
 import codecs
 import json
 import os
@@ -118,13 +119,26 @@ def chop_dialog(in_log, in_label, in_translations):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print \
-            'Usage: chop_dstc45_dialogs.py ' \
-            '<dialogs folder> <scripts/config folder> <output_folder>'
-        exit()
-    if os.path.isdir(sys.argv[3]):
-        shutil.rmtree(sys.argv[3])
-        os.makedirs(sys.argv[3])
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dialogs_folder', default='data/dstc5')
+    parser.add_argument(
+        '--scripts_config_folder',
+        default='dstc5_scripts/config'
+    )
+    parser.add_argument(
+        '--output_folder_folder',
+        default='data/dstc5_chopped'
+    )
+    parser.add_argument(
+        '--dataset_names',
+        default='train,dev',
+        help='"train,dev..."'
+    )
+
+    args = parser.parse_args()
+
+    if os.path.isdir(args.output_folder):
+        shutil.rmtree(args.output_folder)
+        os.makedirs(args.output_folder)
     chopped_dialogs_map = chop_dialogs(sys.argv[1], sys.argv[3])
     chop_dataset_configs(chopped_dialogs_map, sys.argv[2])
