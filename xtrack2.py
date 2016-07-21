@@ -35,13 +35,9 @@ from model_baseline import BaselineModel
 from dstc_tracker import XTrack2DSTCTracker
 from dstc5_scripts.ontology_reader import OntologyReader
 
+
 def compute_stats(
-    slots,
-    slot_selection,
-    classes,
-    prediction,
-    y,
-    joint_slot_name
+    slots, slot_selection, classes, prediction, y, joint_slot_name
 ):
     conf_mats = {}
     conf_mats[joint_slot_name] = ConfusionMatrix(2)

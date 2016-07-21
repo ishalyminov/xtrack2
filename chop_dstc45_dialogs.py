@@ -68,22 +68,7 @@ def chop_dataset_configs(
             print >>output, '\n'.join(modified_config)
 
 
-def chop_dialog(in_log, in_label, in_translations):
-    def get_blank_dialog(in_session_id):
-        result = {
-            'log': dict(log_header),
-            'label': dict(label_header),
-            'translations': dict(translations_header)
-        }
-        for key in result.keys():
-            result[key]['utterances'] = []
-            result[key]['session_id'] = in_session_id
-        return result
-
-    get_dialog_length = lambda: int(
-        DIALOG_LEN_MIN + random.random() * (DIALOG_LEN_MAX - DIALOG_LEN_MIN)
-    )
-
+def get_blank_dialog(in_log, in_label, in_translations):
     log_header = {
         key: in_log[key]
         for key in set(in_log.keys()).difference(['utterances'])
@@ -97,6 +82,38 @@ def chop_dialog(in_log, in_label, in_translations):
         for key in set(in_translations.keys()).difference(['utterances'])
     }
 
+    result = {
+        'log': dict(log_header),
+        'label': dict(label_header),
+        'translations': dict(translations_header)
+    }
+    return result
+
+
+def set_session_id(in_blank_dialog, in_session_id):
+    for key in in_blank_dialog.keys():
+        in_blank_dialog[key]['utterances'] = []
+        in_blank_dialog[key]['session_id'] = in_session_id
+
+
+def chop_dialog(
+    in_log,
+    in_label,
+    in_translations,
+    keep_segments=True,
+    filter_general_talk=True
+):
+    get_dialog_length = lambda: \
+        int(DIALOG_LEN_MIN + random.random() * (DIALOG_LEN_MAX - DIALOG_LEN_MIN) \
+        if keep_segments \
+        else 999999  # pretty much infinite:)
+    )
+    begin_new_dialog = lambda turn: \
+        turn['segment_info']['target_bio'] == 'B' if keep_segments \
+        else turns_in_current_dialog == current_dialog_length
+
+    blank_dialog = get_blank_dialog(in_log, in_label, in_translations)
+
     result = []
     current_dialog_length = 0
     turns_in_current_dialog = 0
@@ -107,14 +124,17 @@ def chop_dialog(in_log, in_label, in_translations):
         in_label['utterances'],
         in_translations['utterances']
     ):
-        if turns_in_current_dialog == current_dialog_length:
+        if filter_general_talk and log_turn['segment_info']['target_bio'] == 'O':
+            continue
+        if begin_new_dialog(log_turn):
             current_dialog_length = get_dialog_length()
             turns_in_current_dialog = 0
-            result.append(
-                get_blank_dialog(
-                    '{}_{}'.format(log_header['session_id'], len(result))
-                )
+            new_dialog = dict(blank_dialog)
+            set_session_id(
+                new_dialog,
+                '{}_{}'.format(in_log['session_id'], len(result))
             )
+            result.append(new_dialog)
         result[-1]['log']['utterances'].append(log_turn)
         result[-1]['label']['utterances'].append(label_turn)
         result[-1]['translations']['utterances'].append(translation_turn)
