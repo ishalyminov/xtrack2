@@ -8,8 +8,8 @@ import itertools
 import collections
 
 DIALOG_FILES = ['log.json', 'label.json', 'translations.json']
-DIALOG_LEN_MIN = 10
-DIALOG_LEN_MAX = 30
+DIALOG_LEN_MIN = 20
+DIALOG_LEN_MAX = 60
 
 
 def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
@@ -104,10 +104,10 @@ def chop_dialog(
     filter_general_talk=True
 ):
     get_dialog_length = lambda: \
-        int(DIALOG_LEN_MIN + random.random() * (DIALOG_LEN_MAX - DIALOG_LEN_MIN) \
-        if keep_segments \
-        else 999999  # pretty much infinite:)
-    )
+        999999 if keep_segments \
+        else int(
+            DIALOG_LEN_MIN + random.random() * (DIALOG_LEN_MAX - DIALOG_LEN_MIN)
+        )
     begin_new_dialog = lambda turn: \
         turn['segment_info']['target_bio'] == 'B' if keep_segments \
         else turns_in_current_dialog == current_dialog_length
@@ -129,7 +129,11 @@ def chop_dialog(
         if begin_new_dialog(log_turn):
             current_dialog_length = get_dialog_length()
             turns_in_current_dialog = 0
-            new_dialog = dict(blank_dialog)
+            new_dialog = get_blank_dialog(
+                in_log,
+                in_label,
+                in_translations
+            )
             set_session_id(
                 new_dialog,
                 '{}_{}'.format(in_log['session_id'], len(result))
