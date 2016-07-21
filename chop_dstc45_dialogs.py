@@ -157,7 +157,7 @@ def main(
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dialogs_folder', default='data/dstc5')
+    parser.add_argument('--dialogs_folder', required=True)
     parser.add_argument(
         '--scripts_config_folder',
         default='dstc5_scripts/config'
@@ -165,7 +165,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_folder', default='data/dstc5_chopped')
     parser.add_argument(
         '--dataset_names',
-        default='dstc4_train,dstc4_dev',
+        default='dstc5_train,dstc5_dev',
         help='"train,dev..."'
     )
 

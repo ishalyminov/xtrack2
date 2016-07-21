@@ -57,8 +57,8 @@ def process_dialog(in_src_dir, in_dst_dir, in_dialog_name, in_translate_flag):
     if in_translate_flag:
         translated_log = None
         with \
-                open(os.path.join(dialog_folder, 'log.json')) as log_file, \
-                open(os.path.join(dialog_folder, 'translations.json')) as translations_file:
+            open(os.path.join(dialog_folder, 'log.json')) as log_file, \
+            open(os.path.join(dialog_folder, 'translations.json')) as translations_file:
             log = json.load(log_file)
             translations = json.load(translations_file)
             translated_log = translate_dialog_baseline(log, translations)
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_dir', required=True)
     parser.add_argument('--output_dir', required=True)
-    parser.add_argument('--scripts_config_dir', required=True)
+    parser.add_argument('--scripts_config_dir', default='dstc5_scripts/config')
 
     args = parser.parse_args()
 
