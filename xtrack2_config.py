@@ -1,3 +1,5 @@
+import os
+
 data_directory = 'data/dstc5_chopped'
 experiment_directory = 'data'
 dstc45_config_dir = 'dstc5_scripts/config/chopped'

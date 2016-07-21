@@ -9,6 +9,7 @@ import sys
 
 import re
 
+import itertools
 
 NEAR_INF = sys.float_info.max
 
@@ -137,13 +138,16 @@ def parse_dialog_from_directory(dialog_dir):
                         trained model whose file name is passed in this
                         argument
     """
-    log = json.load(open(os.path.join(dialog_dir, 'log.json')))
-
+    log_file_name = os.path.join(dialog_dir, 'log.json')
     labels_file_name = os.path.join(dialog_dir, 'label.json')
-    if os.path.exists(labels_file_name):
-        labels = json.load(open(labels_file_name))
-    else:
-        labels = None
+    translations_file_name = os.path.join(dialog_dir, 'translations.json')
+    with open(log_file_name) as log_file:
+        log = json.load(log_file)
+        if os.path.exists(labels_file_name):
+            with open(labels_file_name) as labels_file:
+                labels = json.load(open(labels_file_name))
+        else:
+            labels = None
 
     d = DSTC5ParsedDialog(log, labels)
 

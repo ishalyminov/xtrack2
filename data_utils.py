@@ -38,7 +38,7 @@ def parse_slots_and_slot_groups(args):
 
 def import_dstc_data(out_dir, dataset):
     input_dir = data_directory
-    flist = os.path.join(dstc45_config_dir, 'dstc4_%s.flist' % dataset)
+    flist = os.path.join(dstc45_config_dir, 'dstc5_%s.flist' % dataset)
     import_dstc45.import_dstc(
         data_dir=input_dir,
         out_dir=out_dir,
