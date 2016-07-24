@@ -86,8 +86,11 @@ class ConfusionMatrix:
         tp = np.asarray(np.diag(self.mat).flatten(),dtype='float')
         fn = np.asarray(np.sum(self.mat, axis=1).flatten(),dtype='float') - tp
         fp = np.asarray(np.sum(self.mat, axis=0).flatten(),dtype='float') - tp
-        tn = np.asarray(np.sum(self.mat)*np.ones(self.n_classes).flatten(),dtype='float') - tp - fn - fp
-        return tp,fn,fp,tn
+        tn = np.asarray(
+            np.sum(self.mat)*np.ones(self.n_classes).flatten(),
+            dtype='float'
+        ) - tp - fn - fp
+        return tp, fn, fp, tn
 
     def accuracy(self):
         """

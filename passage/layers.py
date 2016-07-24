@@ -26,6 +26,7 @@ def theano_one_hot(idx, n):
 
 srng = RandomStreams(seed=1234)
 
+
 class Layer(object):
     name = "unnamed_layer"
     #def connect(self):
@@ -65,7 +66,6 @@ class IdentityInput(object):
         return set()
 
 
-
 class ZipLayer(object):
     def __init__(self, concat_axis, layers):
         self.layers = layers
@@ -78,10 +78,6 @@ class ZipLayer(object):
 
         res = T.concatenate(outs, axis=self.concat_axis)
         return T.cast(res, dtype=theano.config.floatX)
-        #return T.concatenate([outs[0] * T.repeat(outs[1], self.layers[0].size,
-        #                                         axis=2),
-        #                      outs[2]],
-        #                     axis=self.concat_axis)
 
     def get_params(self):
         return set(flatten([layer.get_params() for layer in self.layers]))
@@ -104,7 +100,6 @@ class SumLayer(object):
 
     def get_params(self):
         return set(flatten([layer.get_params() for layer in self.layers]))
-
 
 
 class Embedding(Layer):
@@ -163,8 +158,16 @@ class Embedding(Layer):
 
 
 class Recurrent(Layer):
-    def __init__(self, name=None, size=256, init=inits.normal, truncate_gradient=-1,
-                 seq_output=False, p_drop=0., init_scale=0.1):
+    def __init__(
+        self,
+        name=None,
+        size=256,
+        init=inits.normal,
+        truncate_gradient=-1,
+        seq_output=False,
+        p_drop=0.,
+        init_scale=0.1
+    ):
         self.size = size
         self.init = init
         self.name = name
@@ -222,12 +225,22 @@ class Recurrent(Layer):
         return self.l_in.get_params().union(self.params)
 
 
-
 class LstmRecurrent(Layer):
 
-    def __init__(self, name=None, size=256, init=inits.normal, truncate_gradient=-1,
-                 seq_output=False, p_drop=0., init_scale=0.1, out_cells=False,
-                 peepholes=False, enable_branch_exp=False, backward=False):
+    def __init__(
+        self,
+        name=None,
+        size=256,
+        init=inits.normal,
+        truncate_gradient=-1,
+        seq_output=False,
+        p_drop=0.,
+        init_scale=0.1,
+        out_cells=False,
+        peepholes=False,
+        enable_branch_exp=False,
+        backward=False
+    ):
         if name:
             self.name = name
         self.init = init
@@ -383,16 +396,19 @@ class LstmRecurrent(Layer):
     def _compute_seq(self, x_dot_w, dropout_active):
         outputs_info = self._prepare_outputs_info(x_dot_w)
 
-        res = theano.scan(self.step,
-                                      sequences=[x_dot_w],
-                                      outputs_info=outputs_info,
-                                      non_sequences=[self.u, self.p_vec_f,
-                                                     self.p_vec_i,
-                                                     self.p_vec_o,
-                                                     1 if dropout_active else
-                                                     0],
-                                      truncate_gradient=self.truncate_gradient,
-                                      go_backwards=self.backward
+        res = theano.scan(
+            self.step,
+            sequences=[x_dot_w],
+            outputs_info=outputs_info,
+            non_sequences=[
+                self.u,
+                self.p_vec_f,
+                self.p_vec_i,
+                self.p_vec_o,
+                1 if dropout_active else 0
+            ],
+            truncate_gradient=self.truncate_gradient,
+            go_backwards=self.backward
         )
         out, cells = self._process_scan_output(res)
         return cells, out
@@ -411,14 +427,26 @@ class LstmRecurrent(Layer):
 
 class LstmWithMLP(LstmRecurrent):
 
-    def __init__(self, name=None, size=256, init=inits.normal, truncate_gradient=-1,
-                 seq_output=False, p_drop=0., init_scale=0.1, out_cells=False,
-                 peepholes=False, enable_branch_exp=False, backward=False,
-                 mlps=None):
-        super(LstmWithMLP, self).__init__(name, size, init, truncate_gradient,
-                                          seq_output, p_drop, init_scale,
-                                          out_cells, peepholes,
-                                          enable_branch_exp, backward)
+    def __init__(
+        self,
+        name=None,
+        size=256,
+        init=inits.normal,
+        truncate_gradient=-1,
+        seq_output=False,
+        p_drop=0.,
+        init_scale=0.1,
+        out_cells=False,
+        peepholes=False,
+        enable_branch_exp=False,
+        backward=False,
+        mlps=None
+    ):
+        super(LstmWithMLP, self).__init__(
+            name, size, init, truncate_gradient,
+            seq_output, p_drop, init_scale,
+            out_cells, peepholes, enable_branch_exp, backward
+        )
         self.mlps = mlps
 
     def connect(self, l_in):
@@ -427,17 +455,20 @@ class LstmWithMLP(LstmRecurrent):
         self.mlp_inits = []
         n_mlp_inputs = 0
         for i, mlp in enumerate(self.mlps):
-            mlp_init = self.init((mlp.size, ), layer_width=mlp.size,
-                                 name=self._name_param("mlp_init_%d" % i))
+            mlp_init = self.init(
+                (mlp.size, ),
+                layer_width=mlp.size,
+                name=self._name_param("mlp_init_%d" % i)
+            )
             self.mlp_inits.append(mlp_init)
             n_mlp_inputs += mlp.size
-
         self.params.extend(self.mlp_inits)
-
-        self.w_mlp = self.init((n_mlp_inputs, self.size * 4),
-                           layer_width=self.size,
-                           scale=self.init_scale,
-                           name=self._name_param("Wmlp"))
+        self.w_mlp = self.init(
+            (n_mlp_inputs, self.size * 4),
+            layer_width=self.size,
+            scale=self.init_scale,
+            name=self._name_param("Wmlp")
+        )
         self.params.append(self.w_mlp)
 
     def _prepare_outputs_info(self, x_dot_w):
@@ -481,12 +512,11 @@ class LstmWithMLP(LstmRecurrent):
         p_vec_o = args.pop(0)
         dropout_active = args.pop(0)
 
-        h_t, c_t = super(LstmWithMLP, self).step(x_t, h_tm1, c_tm1, u, p_vec_f,
-                                                 p_vec_i, p_vec_o, dropout_active)
-
+        h_t, c_t = super(LstmWithMLP, self).step(
+            x_t, h_tm1, c_tm1, u, p_vec_f,
+            p_vec_i, p_vec_o, dropout_active
+        )
         outs = [h_t, c_t]
-
-        #h_t_layer = IdentityInput(h_t, self.size)
 
         for mlp in self.mlps:
             #mlp.connect(h_t_layer)
@@ -497,8 +527,14 @@ class LstmWithMLP(LstmRecurrent):
 
 
 class Dense(Layer):
-    def __init__(self, name=None, size=256, activation='rectify', init=inits.normal,
-                 p_drop=0.):
+    def __init__(
+        self,
+        name=None,
+        size=256,
+        activation='rectify',
+        init=inits.normal,
+        p_drop=0.
+    ):
         if name:
             self.name = name
         self.activation_str = activation
@@ -552,12 +588,17 @@ class MLP(Layer):
     def __init__(self, sizes, activations, p_drop=itertools.repeat(0.0),
                  name=None, init=inits.normal):
         layers = []
-        for layer_id, (size, activation, l_p_drop) in enumerate(zip(sizes,
-                                                           activations, p_drop)):
-            layer = Dense(size=size, activation=activation, name="%s_%d" % (
-                name, layer_id, ), p_drop=l_p_drop, init=init)
+        for layer_id, (size, activation, l_p_drop) in enumerate(
+            zip(sizes, activations, p_drop)
+        ):
+            layer = Dense(
+                size=size,
+                activation=activation,
+                name="%s_%d" % (name, layer_id, ),
+                p_drop=l_p_drop,
+                init=init
+            )
             layers.append(layer)
-
         self.stack = Stack(layers, name=name)
         self.size = layers[-1].size
 
@@ -615,8 +656,7 @@ class CrossEntropyObjective(Layer):
     def output(self, dropout_active=False):
         y_hat_out = self.y_hat_layer.output(dropout_active=dropout_active)
 
-        return costs.CategoricalCrossEntropy(self.y_true,
-                                             y_hat_out)
+        return costs.CategoricalCrossEntropy(self.y_true, y_hat_out)
 
     def get_params(self):
         return set(self.y_hat_layer.get_params())
@@ -652,8 +692,8 @@ class TokenSupervisionLossLayer(object):
         y_tokens_pred = self.y_hat_layer.output(dropout_active=dropout_active)
         token_supervision_loss = self.y_true * T.log(y_tokens_pred)
         token_supervision_loss += self.y_true * T.log(1 - y_tokens_pred)
-        token_supervision_loss = - token_supervision_loss.sum() / \
-                                 token_supervision_loss.shape[0]
+        token_supervision_loss = \
+            - token_supervision_loss.sum() / token_supervision_loss.shape[0]
 
         return T.cast(token_supervision_loss, dtype=theano.config.floatX)
 
@@ -691,9 +731,10 @@ class SeqUnwrapper(Layer):
     def output(self, dropout_active=False):
         out = self.prev_layer.output(dropout_active=dropout_active)
 
-        res, _ = theano.scan(self._step,
-                          sequences=[self.y_time, self.y_seq_id],
-                          non_sequences=[out]
+        res, _ = theano.scan(
+            self._step,
+            sequences=[self.y_time, self.y_seq_id],
+            non_sequences=[out]
         )
         return res
 
@@ -718,9 +759,10 @@ class SeqMaxPooling(Layer):
     def output(self, dropout_active=False):
         out = self.prev_layer.output(dropout_active=dropout_active)
 
-        res, _ = theano.scan(self._step,
-                          sequences=[self.y_time, self.y_seq_id],
-                          non_sequences=[out, self.x_score]
+        res, _ = theano.scan(
+            self._step,
+            sequences=[self.y_time, self.y_seq_id],
+            non_sequences=[out, self.x_score]
         )
         return res
 
@@ -766,8 +808,9 @@ class LeNetConvPoolLayer(object):
         # each unit in the lower layer receives a gradient from:
         # "num output feature maps * filter height * filter width" /
         #   pooling size
-        fan_out = (filter_shape[0] * np.prod(filter_shape[2:]) /
-                   np.prod(poolsize))
+        fan_out = (
+            filter_shape[0] * np.prod(filter_shape[2:]) / np.prod(poolsize)
+        )
         # initialize weights with random weights
         W_bound = np.sqrt(6. / (fan_in + fan_out))
         self.W = theano.shared(
@@ -782,8 +825,6 @@ class LeNetConvPoolLayer(object):
         b_values = np.zeros((filter_shape[0],), dtype=theano.config.floatX)
         self.b = theano.shared(value=b_values, borrow=True)
 
-
-
         # store parameters of this layer
         self.params = [self.W, self.b]
 
@@ -794,7 +835,6 @@ class LeNetConvPoolLayer(object):
 
     def get_params(self):
         return self.prev_layer.get_params().union(self.params)
-
 
     def output(self, dropout_active=False):
         input = self.prev_layer.output(dropout_active)
@@ -858,7 +898,12 @@ class BiasedSoftmax(Layer):
         if is_tensor3_softmax: #reshape for tensor3 softmax
             X = X.reshape((shape[0]*shape[1], self.n_in))
 
-        out =  activations.softmax(T.concatenate([T.zeros((X.shape[0], 1)), T.dot(X, self.w)], axis=1) + self.b)
+        out = activations.softmax(
+            T.concatenate(
+                [T.zeros((X.shape[0], 1)), T.dot(X, self.w)],
+                axis=1
+            ) + self.b
+        )
 
         if is_tensor3_softmax: #reshape for tensor3 softmax
             out = out.reshape((shape[0], shape[1], self.size))

@@ -45,6 +45,9 @@ from utils import pdb_on_error
 from model import Model
 from model_baseline import BaselineModel
 
+from dstc5_scripts.stat_classes import (
+    Stat_Accuracy, Stat_Frame_Precision_Recall
+)
 
 def init_logging():
     # Setup logging.
@@ -87,7 +90,14 @@ class XTrack2DSTCTracker(object):
             res[slot] = self.classes_rev[slot][label[slot]]
         return res
 
-    def build_output(self, pred, label, segment_id):
+    def build_output(
+        self,
+        pred,
+        label,
+        segment_id,
+        in_accuracy_stat,
+        in_frame_precision_recall_stat
+    ):
         raw_labels = {}
         raw_label_probs = {}
         for i, slot in enumerate(self.data.slots):
@@ -114,6 +124,11 @@ class XTrack2DSTCTracker(object):
             for i, slot in enumerate(slots):
                 goals_correct[group] &= raw_labels[slot] == label[slot]
 
+        label_list = {key: [value] for key, value in label.items()}
+        raw_labels_list = {key: [value] for key, value in raw_labels.items()}
+        in_accuracy_stat.add(label_list, raw_labels_list)
+        in_frame_precision_recall_stat.add(label_list, raw_labels_list)
+
         goal_labels = {
             slot: [pred[slot]]
             for slot in self.data.slots
@@ -122,9 +137,10 @@ class XTrack2DSTCTracker(object):
             # and pred[slot] in self.ontology.tagsets.get(segment_id, {}).get(slot, [])
         }
 
-        return {
-            'frame_label': goal_labels,
-        }, goals_correct
+        tracker_output = {
+            'frame_label': goal_labels
+        }
+        return tracker_output, goals_correct
 
     def _label_empty(self, lbl):
         res = True
@@ -140,6 +156,8 @@ class XTrack2DSTCTracker(object):
         return preds
 
     def track(self, tracking_log_file_name=None, output_len_accuracy=False):
+        accuracy_stat = Stat_Accuracy()
+        frame_precision_recall_stat = Stat_Frame_Precision_Recall()
         data = self.main_model.prepare_data_predict(
             self.data.sequences,
             self.data.slots
@@ -156,12 +174,6 @@ class XTrack2DSTCTracker(object):
 
         pred_ptr = 0
 
-        len_accuracy = \
-            collections.defaultdict(lambda: collections.defaultdict(int))
-        len_accuracy_n = \
-            collections.defaultdict(lambda: collections.defaultdict(int))
-        accuracy = collections.defaultdict(int)
-        accuracy_n = collections.defaultdict(int)
         result = []
         if tracking_log_file_name:
             self.track_log = open(tracking_log_file_name, 'w')
@@ -184,7 +196,9 @@ class XTrack2DSTCTracker(object):
                         for i, _ in enumerate(self.data.slots)
                     ],
                     lbl['slots'],
-                    segment_id
+                    segment_id,
+                    accuracy_stat,
+                    frame_precision_recall_stat
                 )
                 if dialog['tags']:
                     dialog['tags'] = self._replace_tags(out, dialog['tags'])
@@ -199,33 +213,21 @@ class XTrack2DSTCTracker(object):
                 if not self._label_empty(lbl['slots']) or state_component_mentioned:
                     state_component_mentioned = True
 
-                    for group, slots in self.slot_groups.iteritems():
-                        if goals_correct[group]:
-                            accuracy[group] += 1
-                            len_accuracy[last_pos][group] += 1
-                        accuracy_n[group] += 1
-                        len_accuracy_n[last_pos][group] += 1
-
             result.append({
                 'session_id': dialog['id'],
                 'utterances': turns
             })
 
-            #self.track_log.write("\n")
-
         if len(pred[0]) != pred_ptr:
             raise Exception('Data mismatch.')
 
-        for group in self.slot_groups:
-            accuracy[group] = accuracy[group] * 1.0 / max(1, accuracy_n[group])
-            for t in len_accuracy:
-                factor = 1.0 / max(1, len_accuracy_n[t][group])
-                len_accuracy[t][group] = len_accuracy[t][group] * factor
-
-        res = [result, accuracy]
-        if output_len_accuracy:
-            res.append(len_accuracy)
-            res.append(len_accuracy_n)
+        stats = {
+            'accuracy': accuracy_stat.results()[0][2],
+            'frame_precision': frame_precision_recall_stat.results()[0][2],
+            'frame_recall': frame_precision_recall_stat.results()[1][2],
+            'frame_f1': frame_precision_recall_stat.results()[2][2]
+        }
+        res = [result, stats]
         return tuple(res)
 
     def _replace_tags(self, out, tags):
@@ -253,10 +255,7 @@ class XTrack2DSTCTracker(object):
         return new_res
 
 
-def main(
-        dataset_name, data_file, output_file,
-        params_file, model_type, ontology
-):
+def main(dataset, data_file, output_file, params_file, model_type, ontology):
     models = []
     for pf in params_file:
         logging.info('Loading model from: %s' % pf)
@@ -291,7 +290,7 @@ def main(
 
     tracker_output = {
         'wall_time': float(t),
-        'dataset': dataset_name,
+        'dataset': dataset,
         'sessions': result
     }
 
