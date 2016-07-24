@@ -297,7 +297,6 @@ class Model(NeuralModel):
 
         loss_args = list(input_args)
         loss_args += [y_seq_id, y_time]
-        loss_args += [y_weight]
         loss_args += [y_label[slot] for slot in slots]
         if token_supervision:
             loss_args += [y_tokens_label]
