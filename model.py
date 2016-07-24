@@ -221,7 +221,6 @@ class Model(NeuralModel):
 
         y_seq_id = tt.ivector()
         y_time = tt.ivector()
-        y_weight = tt.vector()
         y_label = {}
         for slot in slots:
             y_label[slot] = tt.ivector(name='y_label_%s' % slot)
@@ -254,11 +253,10 @@ class Model(NeuralModel):
 
             predictions.append(slot_softmax.output(dropout_active=False))
 
-            slot_objective = WeightedCrossEntropyObjective()
+            slot_objective = CrossEntropyObjective()
             slot_objective.connect(
                 y_hat_layer=slot_softmax,
                 y_true=y_label[slot],
-                y_weights=y_weight
             )
             costs.append(slot_objective)
         if token_supervision:
