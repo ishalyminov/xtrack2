@@ -14,7 +14,7 @@ DIALOG_LEN_MIN = 20
 DIALOG_LEN_MAX = 60
 
 # used for filtering off too short dialogs
-MINIMUM_DIALOG_SEGMENT_LENGTH = 3
+MINIMUM_DIALOG_SEGMENT_LENGTH = 2
 
 EVEN_DATASET_SIZE_RATIOS = {
     'train': 0.7,
@@ -218,30 +218,32 @@ def rearrange_datasets(
         for dataset in in_dataset_names:
             dataset_filename = os.path.join(
                 in_scripts_config_folder,
-                '{}_{}.json'.format(dataset, topic)
+                '{}_{}.flist'.format(dataset, topic)
             )
             with open(dataset_filename) as input:
                 setups_by_topic[topic] += [line.strip() for line in input]
-            setups_by_topic[topic] = filter_empty_dialogs(
-                in_data_dir,
-                setups_by_topic[topic]
-            )
+        # setups_by_topic[topic] = filter_empty_dialogs(
+        #     in_data_dir,
+        #     setups_by_topic[topic]
+        # )
         topic_dialogs = setups_by_topic[topic]
         random.shuffle(topic_dialogs)
 
-        topic_dialogs_length = len(topic_dialogs)
+        used_dialogs_number = 0
         for dataset in in_dataset_names:
             dataset_filename = os.path.join(
                 in_scripts_config_folder,
-                '{}_{}.json'.format(dataset, topic)
+                '{}_{}.flist'.format(dataset, topic)
             )
             dataset_type = dataset.split('_')[-1]
             dataset_size = \
-                EVEN_DATASET_SIZE_RATIOS[dataset_type] * topic_dialogs_length
-            dataset_dialogs = topic_dialogs[:dataset_size]
+                EVEN_DATASET_SIZE_RATIOS[dataset_type] * len(topic_dialogs)
+            dataset_dialogs = topic_dialogs[
+                used_dialogs_number:used_dialogs_number + dataset_size
+            ]
+            used_dialogs_number += dataset_size
             with open(dataset_filename, 'w') as output:
                 print >>output, '\n'.join(dataset_dialogs)
-            topic_dialogs = topic_dialogs[topic_dialogs_length:]
 
 
 def filter_empty_dialogs(in_data_dir, in_dialog_flist):
@@ -277,7 +279,8 @@ def main(
         chopped_dialogs_map,
         in_scripts_config_folder,
         in_dataset_names,
-        in_topics
+        in_topics,
+        True
     )
     if in_rearrange_datasets:
         rearrange_datasets(
@@ -308,6 +311,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--rearrange',
+        action='store_true',
         default=False,
         help='rearrange datasets for more even train/dev/test split'
     )
