@@ -1,17 +1,17 @@
 import theano
 import theano.tensor as T
-from theano.tensor.extra_ops import repeat
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 from theano.tensor.nnet import conv
 from theano.tensor.signal import downsample
 
 import itertools
-from utils import shared0s, flatten
+from utils import flatten
 import activations
 import inits
 import costs
 
 import numpy as np
+
 
 def dropout(X, p=0.):
     if p != 0:
@@ -19,12 +19,13 @@ def dropout(X, p=0.):
         X = X * srng.binomial(X.shape, p=retain_prob, dtype=theano.config.floatX)
     return X
 
+
 def theano_one_hot(idx, n):
     z = T.zeros((idx.shape[0], n))
     one_hot = T.set_subtensor(z[T.arange(idx.shape[0]), idx], 1)
     return one_hot
 
-srng = RandomStreams(seed=1234)
+srng = RandomStreams(seed=217)
 
 
 class Layer(object):
@@ -681,7 +682,6 @@ class WeightedCrossEntropyObjective(Layer):
         return set(self.y_hat_layer.get_params())
 
 
-
 class TokenSupervisionLossLayer(object):
     def connect(self, y_hat_layer, y_true):
         self.y_hat_layer = y_hat_layer
@@ -871,7 +871,6 @@ class BiasedSoftmax(Layer):
             self.name = name
         self.init = init
         self.size = size
-
 
     def connect(self, l_in):
         self.l_in = l_in

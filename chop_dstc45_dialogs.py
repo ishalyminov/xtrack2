@@ -30,7 +30,14 @@ def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
         chopped_dialogs = chop_dialog(log, label, translations)
         for dialog in chopped_dialogs:
             chopped_dialog_id = dialog['log']['session_id']
-            chopped_dialogs_map[original_dialog_id].append(chopped_dialog_id)
+            chopped_dialog_topic = ','.join([
+                utterance['segment_info']['topic']
+                for utterance in dialog['log']['utterances']
+            ])
+            chopped_dialogs_map[original_dialog_id].append({
+                'dialog_id': chopped_dialog_id,
+                'topic': chopped_dialog_topic
+            })
             dialog_folder = os.path.join(in_dst_folder, chopped_dialog_id)
             os.makedirs(dialog_folder)
             for dialog_file in DIALOG_FILES:
@@ -48,24 +55,57 @@ def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
 def chop_dataset_configs(
     in_chopped_dialogs_map,
     in_dataset_folder,
-    in_dataset_names
+    in_dataset_names,
+    in_topics,
+    split_by_topics=False
 ):
+    configs = [
+        (os.path.splitext(config_file)[0], None)
+        for config_file in os.listdir(in_dataset_folder)
+        if config_file.endswith('.flist')
+    ]
+    if split_by_topics:
+        real_configs = []
+        for config, dummy_topic in configs:
+            real_configs += [(config, topic) for topic in in_topics]
+        configs = real_configs
+
     result_folder = os.path.join(in_dataset_folder, 'chopped')
     if os.path.isdir(result_folder):
         shutil.rmtree(result_folder)
     os.makedirs(result_folder)
-    for config_file in os.listdir(in_dataset_folder):
-        name, ext = os.path.splitext(config_file)
-        if ext != '.flist' or name not in in_dataset_names:
-            continue
+
+    for config_name, config_topic in configs:
         modified_config = []
+        config_file = config_name + '.flist'
         with open(os.path.join(in_dataset_folder, config_file)) as input:
             for line in input:
                 # removing leading zeros
                 line = int(line.lstrip('0'))
-                modified_config += in_chopped_dialogs_map[line]
-        with open(os.path.join(result_folder, config_file), 'w') as output:
+                modified_config += select_chopped_dialogs_by_topic(
+                    in_chopped_dialogs_map,
+                    line,
+                    config_topic
+                )
+        result_config_file = \
+            '{}_{}.flist'.format(config_name, config_topic) if config_topic \
+            else config_name
+        result_file_full_path = os.path.join(result_folder, result_config_file)
+        with open(result_file_full_path, 'w') as output:
             print >>output, '\n'.join(modified_config)
+
+
+def select_chopped_dialogs_by_topic(
+    in_chopped_dialogs_map,
+    in_dialog_id,
+    in_topic
+):
+    result = [
+        dialog['dialog_id']
+        for dialog in in_chopped_dialogs_map[in_dialog_id]
+        if dialog['topic'] == in_topic or not in_topic
+    ]
+    return result
 
 
 def get_blank_dialog(in_log, in_label, in_translations):
@@ -103,8 +143,9 @@ def chop_dialog(
     keep_segments=True,
     filter_general_talk=True
 ):
+    PRETTY_MUCH_INFINITY = 999999
     get_dialog_length = lambda: \
-        999999 if keep_segments \
+        PRETTY_MUCH_INFINITY if keep_segments \
         else int(
             DIALOG_LEN_MIN + random.random() * (DIALOG_LEN_MAX - DIALOG_LEN_MIN)
         )
@@ -159,14 +200,13 @@ def main(
     in_dialogs_folder,
     in_output_folder,
     in_dataset_names,
-    in_scripts_config_folder
+    in_scripts_config_folder,
+    in_topics
 ):
     if os.path.isdir(in_output_folder):
         shutil.rmtree(in_output_folder)
         os.makedirs(in_output_folder)
-
     datasets = load_dataset_info(in_dataset_names, in_scripts_config_folder)
-
     chopped_dialogs_map = chop_dialogs(
         in_dialogs_folder,
         in_output_folder,
@@ -175,7 +215,9 @@ def main(
     chop_dataset_configs(
         chopped_dialogs_map,
         in_scripts_config_folder,
-        in_dataset_names
+        in_dataset_names,
+        in_topics,
+        split_by_topics=True
     )
 
 
@@ -189,15 +231,23 @@ if __name__ == '__main__':
     parser.add_argument('--output_folder', default='data/dstc5_chopped')
     parser.add_argument(
         '--dataset_names',
-        default='dstc5_train,dstc5_dev',
+        default='dstc45_train,dstc45_dev,dstc45_test',
         help='"train,dev..."'
+    )
+    parser.add_argument(
+        '--topics',
+        default='FOOD,ATTRACTION,TRANSPORTATION,SHOPPING,ACCOMMODATION',
+        help='"FOOD,ATTRACTION,..."'
     )
 
     args = parser.parse_args()
+    datasets = [dataset.strip() for dataset in args.dataset_names.split(',')]
+    topics = [topic.strip() for topic in args.topics.split(',')]
 
     main(
         args.dialogs_folder,
         args.output_folder,
-        args.dataset_names.split(','),
-        args.scripts_config_folder
+        datasets,
+        args.scripts_config_folder,
+        topics
     )

@@ -10,7 +10,7 @@ from dstc5_scripts import ontology_reader
 
 ONTOLOGY = {}
 
-
+'''
 def build_unified_ontology(in_ontology_reader):
     merged_ontology = collections.defaultdict(lambda: set([]))
     ontologies = in_ontology_reader.get_tagsets()
@@ -20,6 +20,18 @@ def build_unified_ontology(in_ontology_reader):
     result = {
         slot_name: list(slot_values)
         for slot_name, slot_values in merged_ontology.iteritems()
+    }
+    return result
+'''
+
+
+def build_ontology_for_topic(in_ontology_reader, in_topic):
+    result_ontology = collections.defaultdict(lambda: set([]))
+    for slot, slot_values in in_ontology_reader.tagsets[in_topic].items():
+        result_ontology[slot].update(slot_values)
+    result = {
+        slot_name: list(slot_values)
+        for slot_name, slot_values in result_ontology.iteritems()
     }
     return result
 
@@ -43,7 +55,10 @@ def import_dstc(data_dir, out_dir, flist, use_stringified_system_acts):
     dialog_dirs = []
     with open(flist) as f_in:
         for f_name in f_in:
-            dialog_dirs.append(os.path.join(data_dir, f_name.strip()))
+            name = f_name.strip()
+            if not name:
+                continue
+            dialog_dirs.append(os.path.join(data_dir, name))
 
     for i, dialog_dir in enumerate(dialog_dirs):
         dialog = dstc_util.parse_dialog_from_directory(dialog_dir)

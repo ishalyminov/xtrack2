@@ -221,6 +221,7 @@ class Model(NeuralModel):
 
         y_seq_id = tt.ivector()
         y_time = tt.ivector()
+        y_weight = tt.vector()
         y_label = {}
         for slot in slots:
             y_label[slot] = tt.ivector(name='y_label_%s' % slot)
@@ -253,10 +254,11 @@ class Model(NeuralModel):
 
             predictions.append(slot_softmax.output(dropout_active=False))
 
-            slot_objective = CrossEntropyObjective()
+            slot_objective = WeightedCrossEntropyObjective()
             slot_objective.connect(
                 y_hat_layer=slot_softmax,
                 y_true=y_label[slot],
+                y_weights=y_weight
             )
             costs.append(slot_objective)
         if token_supervision:
@@ -297,6 +299,7 @@ class Model(NeuralModel):
 
         loss_args = list(input_args)
         loss_args += [y_seq_id, y_time]
+        loss_args += [y_weight]
         loss_args += [y_label[slot] for slot in slots]
         if token_supervision:
             loss_args += [y_tokens_label]
@@ -327,6 +330,11 @@ class Model(NeuralModel):
             predictions
         )
         logging.info('Done. Took: %.1f' % (time.time() - t))
+        theano.printing.pydotprint(
+            self._predict,
+            outfile="xtrack2_model.png",
+            var_with_name_simple=True
+        )
 
     def init_loaded(self):
         pass

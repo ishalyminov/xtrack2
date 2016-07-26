@@ -38,7 +38,7 @@ def parse_slots_and_slot_groups(args):
 
 def import_dstc_data(out_dir, dataset):
     input_dir = data_directory
-    flist = os.path.join(dstc45_config_dir, 'dstc5_%s.flist' % dataset)
+    flist = os.path.join(dstc45_config_dir, '{}.flist'.format(dataset))
     import_dstc45.import_dstc(
         data_dir=input_dir,
         out_dir=out_dir,
@@ -63,10 +63,10 @@ def prepare_experiment(
     debug_dir = os.path.join(e_root, 'debug')
 
     based_on = None
-    for dataset in in_datasets:
-        out_dir = os.path.join(e_root, dataset)
+    for src_dataset, dst_dataset in in_datasets:
+        out_dir = os.path.join(e_root, src_dataset)
         if not skip_dstc_import_step:
-            import_dstc_data(out_dir, dataset)
+            import_dstc_data(out_dir, src_dataset)
         dialogs = load_dialogs(out_dir)
 
         logging.info('Initializing.')
@@ -82,7 +82,7 @@ def prepare_experiment(
             include_base_seqs=False,
             slots=slots,
             slot_groups=slot_groups,
-            oov_ins_p=0.1 if dataset == 'train' else 0.0,
+            oov_ins_p=0.1 if dst_dataset == 'train' else 0.0,
             word_drop_p=0.0,
             include_system_utterances=True,
             nth_best=0,
@@ -95,8 +95,8 @@ def prepare_experiment(
         xtd = xtd_builder.build(dialogs)
 
         logging.info('Saving.')
-        out_file = os.path.join(e_root, '%s.json' % dataset)
+        out_file = os.path.join(e_root, '%s.json' % dst_dataset)
         xtd.save(out_file)
 
-        if dataset == 'train':
+        if dst_dataset == 'train':
             based_on = out_file

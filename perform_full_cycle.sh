@@ -8,10 +8,10 @@ python xtrack2.py \
     data/xtrack/e2_tagged_xtrack_dstc45
 
 python dstc_tracker.py \
-    --dataset_name dstc5_dev
-    --data_file data/xtrack/e2_tagged_xtrack_dstc45/dev.json
-    --output_file dstc5_dev.out
-    --params_file xtrack_out/params.final.p
+    --dataset_name dstc5_dev \
+    --data_file data/xtrack/e2_tagged_xtrack_dstc45/dev.json \
+    --output_file dstc5_dev.out \
+    --params_file xtrack_out/params.final.p \
     --ontology dstc5_scripts/config/ontology_dstc5.json
 
 python dstc5_scripts/check_main.py \

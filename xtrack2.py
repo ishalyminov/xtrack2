@@ -30,9 +30,9 @@ theano.config.floatX = 'float32'
 #theano.config.allow_gc=False
 #theano.scan.allow_gc=False
 #theano.config.profile=True
-#theano.config.mode = 'FAST_COMPILE'
+theano.config.mode = 'FAST_COMPILE'
 #theano.config.linker = 'py'
-theano.config.mode = 'FAST_RUN'
+#theano.config.mode = 'FAST_RUN'
 #theano.config.optimizer = 'fast_compile'
 
 
@@ -558,8 +558,7 @@ def main(
     else:
         selected_train_seqs = xtd_t.sequences
 
-    train_data = model.prepare_data_train(selected_train_seqs, slots)
-    joint_slots = ['joint_%s' % str(grp) for grp in class_groups.keys()]
+    # train_data = model.prepare_data_train(selected_train_seqs, slots)
     best_tracking_acc = 0.0
     seqs = list(xtd_t.sequences)
     seqs = seqs * mb_mult_data
@@ -589,13 +588,15 @@ def main(
     last_inline_print_cnt = 0
     best_track_metric = defaultdict(float)
 
-    while True:
+    keep_on_training = True
+    while keep_on_training:
         if len(mb_to_go) == 0:
             mb_to_go = list(mb_ids)
             epoch += 1
 
             if 0 < n_epochs < epoch:
-                break
+                keep_on_training = False
+                continue
 
         mb_ndx = random.choice(mb_to_go)
         mb_to_go.remove(mb_ndx)
@@ -635,7 +636,6 @@ def main(
             model.save_params(params_file)
 
             valid_loss = model._loss(*valid_data_y)
-            update_ratio = stats.mean('update_ratio')
             update_ratio = stats.mean('update_ratio')
 
             _, track_score = tracker_valid.track(track_log)
