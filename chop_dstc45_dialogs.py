@@ -13,15 +13,6 @@ DIALOG_FILES = ['log.json', 'label.json', 'translations.json']
 DIALOG_LEN_MIN = 20
 DIALOG_LEN_MAX = 60
 
-# used for filtering off too short dialogs
-MINIMUM_DIALOG_SEGMENT_LENGTH = 2
-
-EVEN_DATASET_SIZE_RATIOS = {
-    'train': 0.7,
-    'dev': 0.1,
-    'test': 0.2
-}
-
 
 def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
     root, dirs, files = os.walk(in_src_folder).next()
@@ -41,10 +32,10 @@ def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
         chopped_dialogs = chop_dialog(log, label, translations)
         for dialog in chopped_dialogs:
             chopped_dialog_id = dialog['log']['session_id']
-            chopped_dialog_topic = ','.join([
+            chopped_dialog_topic = ','.join(set([
                 utterance['segment_info']['topic']
                 for utterance in dialog['log']['utterances']
-            ])
+            ]))
             chopped_dialogs_map[original_dialog_id].append({
                 'dialog_id': chopped_dialog_id,
                 'topic': chopped_dialog_topic
@@ -207,64 +198,12 @@ def load_dataset_info(in_dataset_names, in_scripts_config_folder):
     return datasets
 
 
-def rearrange_datasets(
-    in_data_dir,
-    in_scripts_config_folder,
-    in_dataset_names,
-    in_topics
-):
-    setups_by_topic = collections.defaultdict(lambda: [])
-    for topic in in_topics:
-        for dataset in in_dataset_names:
-            dataset_filename = os.path.join(
-                in_scripts_config_folder,
-                '{}_{}.flist'.format(dataset, topic)
-            )
-            with open(dataset_filename) as input:
-                setups_by_topic[topic] += [line.strip() for line in input]
-        # setups_by_topic[topic] = filter_empty_dialogs(
-        #     in_data_dir,
-        #     setups_by_topic[topic]
-        # )
-        topic_dialogs = setups_by_topic[topic]
-        random.shuffle(topic_dialogs)
-
-        used_dialogs_number = 0
-        for dataset in in_dataset_names:
-            dataset_filename = os.path.join(
-                in_scripts_config_folder,
-                '{}_{}.flist'.format(dataset, topic)
-            )
-            dataset_type = dataset.split('_')[-1]
-            dataset_size = \
-                EVEN_DATASET_SIZE_RATIOS[dataset_type] * len(topic_dialogs)
-            dataset_dialogs = topic_dialogs[
-                used_dialogs_number:used_dialogs_number + dataset_size
-            ]
-            used_dialogs_number += dataset_size
-            with open(dataset_filename, 'w') as output:
-                print >>output, '\n'.join(dataset_dialogs)
-
-
-def filter_empty_dialogs(in_data_dir, in_dialog_flist):
-    result = []
-    for dialog in in_dialog_flist:
-        dialog_log = os.path.join(in_data_dir, dialog, 'log.json')
-        with open(dialog_log) as input:
-            dialog_json = json.load(input)
-            if len(dialog_json['utterances']) < MINIMUM_DIALOG_SEGMENT_LENGTH:
-                continue
-            result.append(dialog)
-    return result
-
-
 def main(
     in_dialogs_folder,
     in_output_folder,
     in_dataset_names,
     in_scripts_config_folder,
-    in_topics,
-    in_rearrange_datasets
+    in_topics
 ):
     if os.path.isdir(in_output_folder):
         shutil.rmtree(in_output_folder)
@@ -282,13 +221,6 @@ def main(
         in_topics,
         True
     )
-    if in_rearrange_datasets:
-        rearrange_datasets(
-            in_output_folder,
-            os.path.join(in_scripts_config_folder, 'chopped'),
-            in_dataset_names,
-            in_topics
-        )
 
 
 if __name__ == '__main__':
@@ -309,12 +241,6 @@ if __name__ == '__main__':
         default='FOOD,ATTRACTION,TRANSPORTATION,SHOPPING,ACCOMMODATION',
         help='"FOOD,ATTRACTION,..."'
     )
-    parser.add_argument(
-        '--rearrange',
-        action='store_true',
-        default=False,
-        help='rearrange datasets for more even train/dev/test split'
-    )
 
     args = parser.parse_args()
     datasets = [dataset.strip() for dataset in args.dataset_names.split(',')]
@@ -325,6 +251,5 @@ if __name__ == '__main__':
         args.output_folder,
         datasets,
         args.scripts_config_folder,
-        topics,
-        args.rearrange
+        topics
     )

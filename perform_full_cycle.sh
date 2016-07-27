@@ -2,10 +2,10 @@
 
 . prepare_data.sh
 
-python xtrack2.py \
-    --mb_size=16 --lr=0.1 --opt_type=sgd --p_drop=0.01 --n_cells=100 \
-    --n_epochs=1000 --ontology dstc5_scripts/config/ontology_dstc5.json \
-    data/xtrack/e2_tagged_xtrack_dstc45
+. train_trackers.sh
+
+
+exit
 
 python dstc_tracker.py \
     --dataset_name dstc5_dev \
