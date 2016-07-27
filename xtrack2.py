@@ -487,7 +487,7 @@ def main(
     ontology
 ):
 
-    output_dir = init_env(out)
+    output_dir = init_env(out + os.path.basename(experiment_path))
     mon_train = TrainingStats()
     mon_valid = TrainingStats()
     mon_extreme_examples = TrainingStats()
