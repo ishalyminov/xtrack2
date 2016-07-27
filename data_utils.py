@@ -2,7 +2,6 @@ from data import *
 from data_baseline import *
 import import_dstc45
 from xtrack2_config import (
-    data_directory,
     experiment_directory,
     dstc45_config_dir
 )
@@ -36,8 +35,8 @@ def parse_slots_and_slot_groups(args):
     return slot_groups, slots
 
 
-def import_dstc_data(out_dir, dataset):
-    input_dir = data_directory
+def import_dstc_data(in_data_directory, out_dir, dataset):
+    input_dir = in_data_directory
     flist = os.path.join(dstc45_config_dir, '{}.flist'.format(dataset))
     import_dstc45.import_dstc(
         data_dir=input_dir,
@@ -66,7 +65,7 @@ def prepare_experiment(
     for src_dataset, dst_dataset in in_datasets:
         out_dir = os.path.join(e_root, src_dataset)
         if not skip_dstc_import_step:
-            import_dstc_data(out_dir, src_dataset)
+            import_dstc_data(data_directory, out_dir, src_dataset)
         dialogs = load_dialogs(out_dir)
 
         logging.info('Initializing.')
