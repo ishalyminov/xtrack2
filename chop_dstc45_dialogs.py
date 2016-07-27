@@ -7,11 +7,15 @@ import shutil
 import itertools
 import collections
 
+from dstc5_scripts.ontology_reader import OntologyReader
+
 DIALOG_FILES = ['log.json', 'label.json', 'translations.json']
 
 # used for chopping long dialogs without respect to segment boundaries
 DIALOG_LEN_MIN = 20
 DIALOG_LEN_MAX = 60
+
+ONTOLOGY = None
 
 
 def load_json_or_nothing(in_file_path):
@@ -21,7 +25,13 @@ def load_json_or_nothing(in_file_path):
     return {}
 
 
-def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
+def chop_dialogs(
+    in_src_folder,
+    in_dst_folder,
+    in_dialogs_to_process,
+    in_topic,
+    in_keep_segment_boundaries
+):
     root, dirs, files = os.walk(in_src_folder).next()
     chopped_dialogs_map = collections.defaultdict(lambda: [])
     for dirname in dirs:
@@ -36,7 +46,14 @@ def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
             label = {'utterances': [{}] * len(log['utterances'])}
 
         original_dialog_id = log['session_id']
-        chopped_dialogs = chop_dialog(log, label, translations)
+        if not no_labels:
+            label = filter_frame_labels_for_topic(label, in_topic)
+        chopped_dialogs = chop_dialog(
+            log,
+            label,
+            translations,
+            keep_segments=in_keep_segment_boundaries
+        )
         for dialog in chopped_dialogs:
             chopped_dialog_id = dialog['log']['session_id']
             chopped_dialog_topic = ','.join(set([
@@ -61,6 +78,19 @@ def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
                         indent=4
                     )
     return chopped_dialogs_map
+
+
+def filter_frame_labels_for_topic(in_label, in_topic):
+    slots_for_topic = ONTOLOGY.get_slots(in_topic)
+    result_label = dict(in_label)
+    for utterance in result_label['utterances']:
+        new_frame_label = {
+            slot: values
+            for slot, values in utterance['frame_label'].items()
+            if slot in slots_for_topic
+        }
+        utterance['frame_label'] = new_frame_label
+    return result_label
 
 
 def chop_dataset_configs(
@@ -212,24 +242,32 @@ def main(
     in_output_folder,
     in_dataset_names,
     in_scripts_config_folder,
-    in_topics
+    in_topics,
+    in_ontology,
+    in_keep_segment_boundaries
 ):
+    global ONTOLOGY
+    ONTOLOGY = OntologyReader(in_ontology)
+
     if os.path.isdir(in_output_folder):
         shutil.rmtree(in_output_folder)
         os.makedirs(in_output_folder)
     datasets = load_dataset_info(in_dataset_names, in_scripts_config_folder)
-    chopped_dialogs_map = chop_dialogs(
-        in_dialogs_folder,
-        in_output_folder,
-        reduce(lambda x, y: x + y, datasets.values(), [])
-    )
-    chop_dataset_configs(
-        chopped_dialogs_map,
-        in_scripts_config_folder,
-        in_dataset_names,
-        in_topics,
-        True
-    )
+    for topic in in_topics:
+        chopped_dialogs_map = chop_dialogs(
+            in_dialogs_folder,
+            os.path.join(in_output_folder, topic),
+            reduce(lambda x, y: x + y, datasets.values(), []),
+            in_topics,
+            in_keep_segment_boundaries
+        )
+        chop_dataset_configs(
+            chopped_dialogs_map,
+            in_scripts_config_folder,
+            in_dataset_names,
+            in_topics,
+            False
+        )
 
 
 if __name__ == '__main__':
@@ -250,6 +288,12 @@ if __name__ == '__main__':
         default='FOOD,ATTRACTION,TRANSPORTATION,SHOPPING,ACCOMMODATION',
         help='"FOOD,ATTRACTION,..."'
     )
+    parser.add_argument('--ontology', required=True)
+    parser.add_argument(
+        '--keep_segment_boundaries',
+        default=False,
+        action='store_true'
+    )
 
     args = parser.parse_args()
     datasets = [dataset.strip() for dataset in args.dataset_names.split(',')]
@@ -260,5 +304,7 @@ if __name__ == '__main__':
         args.output_folder,
         datasets,
         args.scripts_config_folder,
-        topics
+        topics,
+        args.ontology,
+        args.keep_segment_boundaries
     )
