@@ -7,6 +7,7 @@ import operator
 
 def main(
     in_dialogs_folder,
+    in_chopped_dialogs_folder,
     in_dataset_name,
     in_scripts_config_folder,
     in_trackfiles_to_merge,
@@ -17,10 +18,16 @@ def main(
         in_dataset_name,
         in_scripts_config_folder
     )
+    original_chopped_sessions = load_sessions(
+        in_chopped_dialogs_folder,
+        None,
+        in_scripts_config_folder
+    )
     chopped_sessions = []
     for trackfile_name in in_trackfiles_to_merge:
         with open(trackfile_name) as trackfile:
             chopped_sessions.append(json.load(trackfile))
+    rebuild_utter_indices(chopped_sessions, original_chopped_sessions)
     merged_sessions = [
         rebuild_session(original_session, chopped_sessions)
         for original_session in original_sessions
@@ -61,17 +68,34 @@ def rebuild_session(in_original_session, in_chopped_sessions):
     return result_session
 
 
+def rebuild_utter_indices(in_modified_sessions, in_original_sessions):
+    original_session_map = {
+        session['session_id']: session
+        for session in in_original_sessions
+    }
+    for session in in_modified_sessions:
+        original_session = original_session_map[session['session_id']]
+        for modified_utterance, original_utterance in zip(
+            session['utterances'], original_session['utterances']
+        ):
+            modified_utterance['utter_index'] = \
+                original_utterance['utter_index']
+
+
 def load_sessions(in_dialogs_folder, in_dataset_name, in_scripts_config_folder):
-    config_filename = os.path.join(
-        in_scripts_config_folder,
-        in_dataset_name + 'flist'
-    )
-    with open(config_filename) as config_file:
-        dataset_files = [
-            line.strip()
-            for line in config_file
-            if len(line.strip())
-        ]
+    # all dirs in the data root folder
+    dataset_files = os.walk(in_dialogs_folder).next()[1]
+    if in_dataset_name:
+        config_filename = os.path.join(
+            in_scripts_config_folder,
+            in_dataset_name + 'flist'
+        )
+        with open(config_filename) as config_file:
+            dataset_files = [
+                line.strip()
+                for line in config_file
+                if len(line.strip())
+            ]
     dataset_dialogs = []
     for filename in dataset_files:
         dialog_filename = os.path.join(in_dialogs_folder, filename, 'log.json')
@@ -83,6 +107,7 @@ def load_sessions(in_dialogs_folder, in_dataset_name, in_scripts_config_folder):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dialogs_folder', required=True)
+    parser.add_argument('--chopped_dialogs_folder', required=True)
     parser.add_argument(
         '--scripts_config_folder',
         default='dstc5_scripts/config'
@@ -120,6 +145,7 @@ if __name__ == '__main__':
 
     main(
         args.dialogs_folder,
+        args.chopped_dialogs_folder,
         datasets,
         args.scripts_config_folder,
         trackfiles_to_merge,
