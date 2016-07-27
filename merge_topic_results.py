@@ -23,26 +23,34 @@ def main(
         None,
         in_scripts_config_folder
     )
-    chopped_sessions = []
+    chopped_tracks = []
     for trackfile_name in in_trackfiles_to_merge:
         with open(trackfile_name) as trackfile:
-            chopped_sessions.append(json.load(trackfile))
-    rebuild_utter_indices(chopped_sessions, original_chopped_sessions)
+            chopped_tracks.append(json.load(trackfile))
+    chopped_sessions = reduce(
+        lambda x, y: x + y['sessions'],
+        chopped_tracks,
+        []
+    )
+    rebuild_utter_indices(
+        chopped_sessions,
+        original_chopped_sessions
+    )
     merged_sessions = [
         rebuild_session(original_session, chopped_sessions)
         for original_session in original_sessions
     ]
     result_json = {
         'dataset': in_dataset_name,
-        'wall_time': sum(operator.itemgetter('wall_time'), chopped_sessions),
+        'wall_time': max(map(operator.itemgetter('wall_time'), chopped_tracks)),
         'sessions': merged_sessions
     }
     with open(in_result_trackfile, 'w') as out_file:
-        json.dump(out_file, result_json)
+        json.dump(result_json, out_file)
 
 
 def rebuild_session(in_original_session, in_chopped_sessions):
-    original_session_id = in_original_session['session_id']
+    original_session_id = str(in_original_session['session_id'])
     utterances = reduce(
         lambda x, y: x + y['utterances'],
         filter(
@@ -56,7 +64,7 @@ def rebuild_session(in_original_session, in_chopped_sessions):
         for utterance in utterances
     }
     result_session = {
-        'session_id': original_session_id,
+        'session_id': int(original_session_id),
         'utterances': []
     }
     for utterance in in_original_session['utterances']:
@@ -88,7 +96,7 @@ def load_sessions(in_dialogs_folder, in_dataset_name, in_scripts_config_folder):
     if in_dataset_name:
         config_filename = os.path.join(
             in_scripts_config_folder,
-            in_dataset_name + 'flist'
+            in_dataset_name + '.flist'
         )
         with open(config_filename) as config_file:
             dataset_files = [
@@ -134,10 +142,6 @@ if __name__ == '__main__':
     )
 
     args = parser.parse_args()
-    datasets = [
-        dataset.strip()
-        for dataset in args.dataset_names.split(',')
-    ]
     trackfiles_to_merge = [
         trackfile.strip()
         for trackfile in args.trackfiles_to_merge.split(',')
@@ -146,7 +150,7 @@ if __name__ == '__main__':
     main(
         args.dialogs_folder,
         args.chopped_dialogs_folder,
-        datasets,
+        args.dataset_name,
         args.scripts_config_folder,
         trackfiles_to_merge,
         args.result_trackfile

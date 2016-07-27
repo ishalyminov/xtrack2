@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 
-. prepare_data.sh
+. ./prepare_data.sh
 
-. train_trackers.sh
+. ./train_trackers.sh
 
 
 exit

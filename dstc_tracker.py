@@ -276,17 +276,12 @@ def main(dataset, data_file, output_file, params_file, model_type, ontology):
     )
 
     t = time.time()
-    result, tracking_accuracy, len_accuracy, len_accuracy_n = \
-        tracker.track(output_len_accuracy=True)
+    result, stats = tracker.track(output_len_accuracy=True)
     t = time.time() - t
     logging.info('Tracking took: %.1fs' % t)
-    for group, accuracy in tracking_accuracy.iteritems():
-        logging.info('Accuracy %s: %.2f %%' % (group, accuracy * 100))
-        for t in len_accuracy:
-            print '%d %.2f %d' % (
-                t, len_accuracy[t][group], len_accuracy_n[t][group]
-            )
-
+    logging.info('Tracking stats: ')
+    for metric, value in stats.items():
+        logging.info('%s: %.5f %%' % (metric, value * 100))
 
     tracker_output = {
         'wall_time': float(t),
@@ -301,7 +296,7 @@ def main(dataset, data_file, output_file, params_file, model_type, ontology):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset_name', type=str, default='test')
+    parser.add_argument('--dataset', required=True)
     parser.add_argument('--data_file', required=True)
     parser.add_argument('--output_file', required=True)
     parser.add_argument('--params_file', action='append', required=True)
