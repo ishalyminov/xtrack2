@@ -46,7 +46,7 @@ def main(
         'sessions': merged_sessions
     }
     with open(in_result_trackfile, 'w') as out_file:
-        json.dump(result_json, out_file)
+        json.dump(result_json, out_file, indent=4)
 
 
 def rebuild_session(in_original_session, in_chopped_sessions):
@@ -72,7 +72,10 @@ def rebuild_session(in_original_session, in_chopped_sessions):
         if utter_index in utterances_map:
             result_session['utterances'].append(utterances_map[utter_index])
         else:
-            result_session['utterances'].append({'utter_index': utter_index})
+            dummy_utterance = {'utter_index': utter_index}
+            if utterance['segment_info']['target_bio'] != 'O':
+                dummy_utterance['frame_label'] = {}
+            result_session['utterances'].append(dummy_utterance)
     return result_session
 
 

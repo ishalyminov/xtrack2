@@ -14,6 +14,13 @@ DIALOG_LEN_MIN = 20
 DIALOG_LEN_MAX = 60
 
 
+def load_json_or_nothing(in_file_path):
+    if os.path.exists(in_file_path):
+        with open(in_file_path) as input_file:
+            return json.load(codecs.getreader('utf-8')(input_file))
+    return {}
+
+
 def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
     root, dirs, files = os.walk(in_src_folder).next()
     chopped_dialogs_map = collections.defaultdict(lambda: [])
@@ -21,13 +28,13 @@ def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
         if dirname not in in_dialogs_to_process:
             continue
         log, label, translations = map(
-            lambda suffix: json.load(
-                codecs.getreader('utf-8')(
-                    open(os.path.join(root, dirname, suffix))
-                )
-            ),
+            lambda suffix: load_json_or_nothing(os.path.join(root, dirname, suffix)),
             DIALOG_FILES
         )
+        no_labels = not label
+        if no_labels:
+            label = {'utterances': [{}] * len(log['utterances'])}
+
         original_dialog_id = log['session_id']
         chopped_dialogs = chop_dialog(log, label, translations)
         for dialog in chopped_dialogs:
@@ -43,6 +50,8 @@ def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
             dialog_folder = os.path.join(in_dst_folder, chopped_dialog_id)
             os.makedirs(dialog_folder)
             for dialog_file in DIALOG_FILES:
+                if dialog_file == 'labels' and no_label:
+                    continue
                 file_name = os.path.join(dialog_folder, dialog_file)
                 with codecs.getwriter('utf-8')(open(file_name, 'w')) as f_out:
                     json.dump(

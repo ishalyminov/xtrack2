@@ -130,7 +130,7 @@ class XTrack2DSTCTracker(object):
         in_frame_precision_recall_stat.add(label_list, raw_labels_list)
 
         goal_labels = {
-            slot: [pred[slot]]
+            slot: pred[slot]
             for slot in self.data.slots
             if pred[slot] != self.data.null_class \
             # and slot in self.ontology.tagsets.get(segment_id, {}).keys() \
@@ -206,6 +206,9 @@ class XTrack2DSTCTracker(object):
                 #self.track_log.write("\n")
                 if segment_bio == 'O':
                     del out['frame_label']
+                else:
+                    out['frame_label'] = \
+                        self._denormalize_frame_label(out['frame_label'])
                 out['utter_index'] = utter_index
                 turns.append(out)
                 pred_ptr += 1
@@ -229,6 +232,17 @@ class XTrack2DSTCTracker(object):
         }
         res = [result, stats]
         return tuple(res)
+
+    def _denormalize_frame_label(self, in_frame_label):
+        new_frame_label = {}
+        for slot, value in in_frame_label.items():
+            denormalized_value = value.split('___')
+            denormalized_value = [
+                atomic_value.replace('_', ' ')
+                for atomic_value in denormalized_value
+            ]
+            new_frame_label[slot] = denormalized_value
+        return new_frame_label
 
     def _replace_tags(self, out, tags):
         new_tags = {}
