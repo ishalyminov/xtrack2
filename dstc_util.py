@@ -51,7 +51,7 @@ class DSTC5ParsedDialog(object):
                 self.utterances.append(Turn(utterance, label))
         else:
             for turn_json in log['utterances']:
-                self.turns.append(Turn(turn_json, None))
+                self.utterances.append(Turn(turn_json, None))
 
     def pretty_print(self, indent=0, step=2):
         repr_str = indent * ' ' + 'Dialog:\n'
@@ -95,6 +95,7 @@ class Turn(object):
         self.speaker = turn['speaker']
         self.transcript = turn.get('transcript', None)
         self.slots_map = {}
+        self.dialog_state = {}
         if labels:
             full_tagged_utterance = ' '.join(labels['semantic_tagged'])
             self.slots_map = parse_semantic_tagged_utterance(

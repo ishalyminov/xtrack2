@@ -50,7 +50,7 @@ def chop_dialogs(in_src_folder, in_dst_folder, in_dialogs_to_process):
             dialog_folder = os.path.join(in_dst_folder, chopped_dialog_id)
             os.makedirs(dialog_folder)
             for dialog_file in DIALOG_FILES:
-                if dialog_file == 'labels' and no_label:
+                if dialog_file == 'label.json' and no_labels:
                     continue
                 file_name = os.path.join(dialog_folder, dialog_file)
                 with codecs.getwriter('utf-8')(open(file_name, 'w')) as f_out:

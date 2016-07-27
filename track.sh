@@ -8,15 +8,15 @@ fi
 CHALLENGE_ID=$1
 DATASET_NAME=$2
 
-#for topic in `python -m ontology_util get_topics`; do
-#    echo "Tracking dialogs on '$topic' topic"
-#    python -m dstc_tracker \
-#        --dataset "${CHALLENGE_ID}_${DATASET_NAME}" \
-#        --data_file data/xtrack/e2_tagged_${CHALLENGE_ID}_${topic}/${DATASET_NAME}.json \
-#        --output_file ${CHALLENGE_ID}_${DATASET_NAME}_${topic}.out \
-#        --params_file xtrack2_oute2_tagged_${topic}/params.final.p \
-#        --ontology dstc5_scripts/config/ontology_dstc5.json
-# done
+for topic in `python -m ontology_util get_topics`; do
+    echo "Tracking dialogs on '$topic' topic"
+    python -m dstc_tracker \
+        --dataset "${CHALLENGE_ID}_${DATASET_NAME}" \
+        --data_file data/xtrack/e2_tagged_${CHALLENGE_ID}_${topic}/${DATASET_NAME}.json \
+        --output_file ${CHALLENGE_ID}_${DATASET_NAME}_${topic}.out \
+        --params_file xtrack2_oute2_tagged_${topic}/params.final.p \
+        --ontology dstc5_scripts/config/ontology_dstc5.json
+done
 
 python -m merge_topic_results \
     --dialogs_folder data/dstc5_translated \
