@@ -1,7 +1,7 @@
 import argparse
 import json
 import os
-
+import collections
 import operator
 
 
@@ -23,26 +23,32 @@ def main(
         None,
         in_scripts_config_folder
     )
-    chopped_tracks = []
+    chopped_tracks = collections.defaultdict(lambda: [])
     for trackfile_name in in_trackfiles_to_merge:
+        track_topic = os.path.splitext(trackfile_name)[0].split('_')[-1]
         with open(trackfile_name) as trackfile:
-            chopped_tracks.append(json.load(trackfile))
-    chopped_sessions = reduce(
-        lambda x, y: x + y['sessions'],
-        chopped_tracks,
-        []
-    )
-    rebuild_utter_indices(
-        chopped_sessions,
-        original_chopped_sessions
-    )
+            chopped_tracks[track_topic].append(json.load(trackfile))
+    chopped_sessions = {
+        track: reduce(
+            lambda x, y: x + y['sessions'],
+            chopped_tracks[track],
+            []
+        )
+        for track in chopped_tracks
+    }
+
+    for track in chopped_sessions:
+        rebuild_utter_indices(
+            chopped_sessions[track],
+            original_chopped_sessions
+        )
     merged_sessions = [
         rebuild_session(original_session, chopped_sessions)
         for original_session in original_sessions
     ]
     result_json = {
         'dataset': in_dataset_name,
-        'wall_time': max(map(operator.itemgetter('wall_time'), chopped_tracks)),
+        'wall_time': chopped_tracks['ACCOMMODATION'][0]['wall_time'],
         'sessions': merged_sessions
     }
     with open(in_result_trackfile, 'w') as out_file:
@@ -51,26 +57,32 @@ def main(
 
 def rebuild_session(in_original_session, in_chopped_sessions):
     original_session_id = str(in_original_session['session_id'])
-    utterances = reduce(
-        lambda x, y: x + y['utterances'],
-        filter(
-            lambda z: z['session_id'].startswith(original_session_id),
-            in_chopped_sessions
-        ),
-        []
-    )
-    utterances_map = {
-        utterance['utter_index']: utterance
-        for utterance in utterances
+    utterances = {
+        track: reduce(
+            lambda x, y: x + y['utterances'],
+            filter(
+                lambda z: z['session_id'].startswith(original_session_id),
+                in_chopped_sessions[track]
+            ),
+            []
+        )
+        for track in in_chopped_sessions
     }
+    utterances_maps = {}
+    for topic in utterances:
+        utterances_maps[topic] = {
+            utterance['utter_index']: utterance
+            for utterance in utterances[topic]
+        }
     result_session = {
         'session_id': int(original_session_id),
         'utterances': []
     }
     for utterance in in_original_session['utterances']:
         utter_index = utterance['utter_index']
-        if utter_index in utterances_map:
-            result_session['utterances'].append(utterances_map[utter_index])
+        utter_topic = utterance['segment_info']['topic']
+        if utter_topic in utterances_maps and utter_index in utterances_maps[topic]:
+            result_session['utterances'].append(utterances_maps[topic][utter_index])
         else:
             dummy_utterance = {'utter_index': utter_index}
             if utterance['segment_info']['target_bio'] != 'O':

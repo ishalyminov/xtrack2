@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import data_utils
 from import_dstc45 import build_ontology_for_topic
@@ -17,13 +18,13 @@ def main(
     datasets = [dataset.strip() for dataset in dataset_names.split(',')]
     for topic in ontology.get_topics():
         datasets_for_topic = [
-            ('{}_{}_{}'.format(challenge_id, dataset, topic), dataset)
+            ('{}_{}'.format(challenge_id, dataset), dataset)
             for dataset in datasets
         ]
         slots = ontology.get_slots(topic)
         data_utils.prepare_experiment(
             experiment_name='e2_tagged_%s_%s' % (challenge_id, topic),
-            data_directory=dialogs_folder,
+            data_directory=os.path.join(dialogs_folder, topic),
             slots=slots,
             slot_groups={slot: [slot] for slot in slots},
             ontology=build_ontology_for_topic(ontology, topic),

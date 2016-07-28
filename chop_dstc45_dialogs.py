@@ -16,6 +16,7 @@ DIALOG_LEN_MIN = 20
 DIALOG_LEN_MAX = 60
 
 ONTOLOGY = None
+CHOPPED_DIALOGS_MAP = {}
 
 
 def load_json_or_nothing(in_file_path):
@@ -46,15 +47,19 @@ def chop_dialogs(
             label = {'utterances': [{}] * len(log['utterances'])}
 
         original_dialog_id = log['session_id']
-        if not no_labels:
-            label = filter_frame_labels_for_topic(label, in_topic)
-        chopped_dialogs = chop_dialog(
-            log,
-            label,
-            translations,
-            keep_segments=in_keep_segment_boundaries
-        )
+
+        global CHOPPED_DIALOGS_MAP
+        if dirname not in CHOPPED_DIALOGS_MAP:
+            CHOPPED_DIALOGS_MAP[dirname] = chop_dialog(
+                log,
+                label,
+                translations,
+                keep_segments=in_keep_segment_boundaries
+            )
+        chopped_dialogs = CHOPPED_DIALOGS_MAP[dirname][:]
         for dialog in chopped_dialogs:
+            if not no_labels:
+                dialog['label'] = filter_frame_labels_for_topic(dialog['label'], in_topic)
             chopped_dialog_id = dialog['log']['session_id']
             chopped_dialog_topic = ','.join(set([
                 utterance['segment_info']['topic']
@@ -82,8 +87,12 @@ def chop_dialogs(
 
 def filter_frame_labels_for_topic(in_label, in_topic):
     slots_for_topic = ONTOLOGY.get_slots(in_topic)
+    if not slots_for_topic:
+        slots_for_topic = []
     result_label = dict(in_label)
     for utterance in result_label['utterances']:
+        if 'frame_label' not in utterance:
+            continue
         new_frame_label = {
             slot: values
             for slot, values in utterance['frame_label'].items()
@@ -130,7 +139,7 @@ def chop_dataset_configs(
                 )
         result_config_file = \
             '{}_{}.flist'.format(config_name, config_topic) if config_topic \
-            else config_name
+            else config_name + '.flist'
         result_file_full_path = os.path.join(result_folder, result_config_file)
         with open(result_file_full_path, 'w') as output:
             print >>output, '\n'.join(modified_config)

@@ -7,5 +7,4 @@
 . ./track.sh
 
 . ./evaluate.sh
-exit
 
