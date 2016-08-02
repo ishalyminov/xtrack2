@@ -66,13 +66,12 @@ def init_logging():
 
 
 class XTrack2DSTCTracker(object):
-    def __init__(self, data, models, ontology):
+    def __init__(self, data, models):
         assert len(models), 'You need to specify some models.'
 
         self.data = data
         self.models = models
         self.main_model = models[0]
-        self.ontology = ontology
 
         self.classes_rev = {}
         for slot in self.data.slots:

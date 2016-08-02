@@ -9,6 +9,10 @@ from passage.iterators import padded
 from passage.layers import *
 from passage.model import NeuralModel
 
+from keras.models import Model
+from keras.layers import Dense, Activation, Input, Merge
+from keras.layers.recurrent import LSTM
+
 
 class BaselineModel(NeuralModel):
     def _log_classes_info(self):
@@ -199,10 +203,135 @@ class BaselineModel(NeuralModel):
         y_labels = [[] for slot in slots]
         for item in seqs:
             x_vecs = []
-            for features in item['data']:
+            for token_id in item['data']:
                 x_vec = np.zeros((len(self.vocab), ))
-                for ftr, val in features.iteritems():
-                    x_vec[self.vocab[ftr]] = val
+                x_vec[token_id] = 1
+                x_vecs.append(x_vec)
+            x.append(x_vecs)
+
+            labels = item['labels']
+
+            for label in labels:
+                y_seq_id.append(len(x) - 1)
+                y_time.append(label['time'])
+
+                for i, slot in enumerate(slots):
+                    lbl_val = label['slots'][slot]
+                    if lbl_val < 0:
+                        lbl_val = len(self.slot_classes[slot]) + lbl_val
+                    y_labels[i].append(lbl_val)
+
+        import pdb; pdb.set_trace()
+        x_zero_pad = np.zeros((len(self.vocab), ))
+        x = padded(x, pad_by=[x_zero_pad])
+        x = x.transpose(1, 0, 2)
+
+        data = [x]
+        data.extend([y_seq_id, y_time])
+        if with_labels:
+            data.extend(y_labels)
+        return tuple(data)
+
+
+class BaselineModelKeras(object):
+    def _log_classes_info(self):
+        for slot, vals in self.slot_classes.iteritems():
+            logging.info('  %s:' % slot)
+            for val, val_ndx in sorted(vals.iteritems(), key=lambda x: x[1]):
+                logging.info('    - %s (%d)' % (val, val_ndx))
+
+    def __init__(
+        self, slots, slot_classes, opt_type,
+        oclf_n_hidden, oclf_n_layers, oclf_activation,
+        n_cells,
+        debug, p_drop,
+        vocab,
+        input_n_layers, input_n_hidden, input_activation,
+        token_features, token_supervision,
+        momentum, enable_branch_exp, l1, l2, build_train=True
+    ):
+        self.vocab = vocab
+        self.slots = slots
+        self.slot_classes = slot_classes
+        self.n_cells = n_cells
+        self.p_drop = p_drop
+        self.oclf_n_layers = oclf_n_layers
+        self.opt_type = opt_type
+
+        logging.info('We have the following classes:')
+        self._log_classes_info()
+
+    def init_model(self, in_train_dataset):
+        input_layer = Input(
+            name='input',
+            shape=(len(in_train_dataset[0]), len(self.vocab))
+        )
+
+        logging.info('Creating LSTM layer with %d neurons.' % (self.n_cells))
+        main_lstm = LSTM(
+            self.n_cells,
+            name='lstm',
+            dropout_W=self.p_drop
+        )(input_layer)
+
+        slot_mlps = []
+        for slot in self.slots:
+            logging.info(
+                'Building output classifier for the slot "{}"'.format(slot)
+            )
+            # for layer_id in range(self.oclf_n_layers):
+            #     result.add(
+            #         # TODO: add Gaussian random initialization to each layer
+            #         Dense(
+            #             input_dim=input_dim,
+            #             output_dim=oclf_n_hidden,
+            #             activation=oclf_activation
+            #         )
+            #    )
+            n_classes = len(self.slot_classes[slot])
+            slot_mlps.append(
+                Dense(output_dim=n_classes, activation='softmax')(main_lstm)
+            )
+        merge_layer = Merge(name='mlps_merged', mode='concat')(slot_mlps)
+
+        self.model = Model(input=input_layer, output=merge_layer)
+        self.model.compile(
+            optimizer=self.opt_type,
+            loss='categorical_crossentropy',
+            metrics=['accuracy']
+        )
+
+    def init_loaded(self):
+        pass
+
+    def prepare_data_train(self, seqs, slots):
+        return self._prepare_data(seqs, slots, with_labels=True)
+
+    def train(self, seqs, slots):
+        trainset_prepared = self.prepare_data_train(seqs, slots)
+        self.init_model(trainset_prepared)
+
+    def prepare_data_predict(self, seqs, slots):
+        return self._prepare_data(seqs, slots, with_labels=False)
+
+    def _prepare_y_token_labels_padding(self):
+        token_padding = []
+        for slot in self.slots:
+            token_padding.append(0)
+            token_padding.append(0)
+
+        return [token_padding]
+
+    def _prepare_data(self, seqs, slots, with_labels=True):
+        x = []
+        y_seq_id = []
+        y_time = []
+        y_labels = [[] for slot in slots]
+        for item in seqs:
+            x_vecs = []
+            for feature in item['data']:
+                x_vec = np.zeros((len(self.vocab),))
+                x_vec[feature] = 1
                 x_vecs.append(x_vec)
 
             x.append(x_vecs)
@@ -219,7 +348,7 @@ class BaselineModel(NeuralModel):
                         lbl_val = len(self.slot_classes[slot]) + lbl_val
                     y_labels[i].append(lbl_val)
 
-        x_zero_pad = np.zeros((len(self.vocab), ))
+        x_zero_pad = np.zeros((len(self.vocab),))
         x = padded(x, pad_by=[x_zero_pad]).transpose(1, 0, 2)
 
         data = [x]

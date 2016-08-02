@@ -7,10 +7,12 @@ import theano.tensor as tt
 from passage import updates
 from passage.iterators import padded
 from passage.layers import *
-from passage.model import NeuralModel
+
+from keras.models import Sequential
+from keras.layers import Dense, Activation
 
 
-class Model(NeuralModel):
+class Model(Sequential):
     def _log_classes_info(self):
         for slot, vals in self.slot_classes.iteritems():
             logging.info('  %s:' % slot)

@@ -22,7 +22,7 @@ from utils import (
 )
 from model import Model
 from model_simple_conv import SimpleConvModel
-from model_baseline import BaselineModel
+from model_baseline import BaselineModelKeras
 from dstc_tracker import XTrack2DSTCTracker
 from dstc5_scripts.ontology_reader import OntologyReader
 
@@ -368,7 +368,6 @@ def get_model(
     input_activation,
     eval_on_full_train, x_include_token_ftrs, enable_branch_exp, l1, l2,
     x_include_mlp, enable_token_supervision, model_type,
-    ontology,
     train_data
 ):
     n_input_tokens = len(train_data.vocab)
@@ -444,7 +443,7 @@ def get_model(
             l2=l2
         )
     elif model_type == 'baseline':
-        return BaselineModel(
+        return BaselineModelKeras(
             slots=slots,
             slot_classes=train_data.classes,
             oclf_n_hidden=oclf_n_hidden,
@@ -483,8 +482,7 @@ def main(
     p_drop, init_emb_from, input_n_layers, input_n_hidden,
     input_activation,
     eval_on_full_train, x_include_token_ftrs, enable_branch_exp, l1, l2,
-    x_include_mlp, enable_token_supervision, model_type,
-    ontology
+    x_include_mlp, enable_token_supervision, model_type
 ):
 
     output_dir = init_env(out + os.path.basename(experiment_path))
@@ -534,19 +532,18 @@ def main(
         p_drop, init_emb_from, input_n_layers, input_n_hidden,
         input_activation,
         eval_on_full_train, x_include_token_ftrs, enable_branch_exp, l1, l2,
-        x_include_mlp, enable_token_supervision, model_type,
-        ontology, xtd_t
+        x_include_mlp, enable_token_supervision, model_type, xtd_t
     )
 
+    model.train(xtd_v.sequences, slots)
     logging.info('Rebuilding took: %.1f' % (time.time() - t))
 
     if load_params:
         logging.info('Loading parameters from: %s' % load_params)
         model.load_params(load_params)
 
-    onto = OntologyReader(ontology)
-    tracker_valid = XTrack2DSTCTracker(xtd_v, [model], onto)
-    tracker_train = XTrack2DSTCTracker(xtd_t, [model], onto)
+    tracker_valid = XTrack2DSTCTracker(xtd_v, [model])
+    tracker_train = XTrack2DSTCTracker(xtd_t, [model])
 
     valid_data_y = model.prepare_data_train(xtd_v.sequences, slots)
     valid_data = model.prepare_data_predict(xtd_v.sequences, slots)
@@ -744,7 +741,6 @@ def build_argument_parser():
     parser.add_argument(
         '--enable_token_supervision', default=False, action='store_true'
     )
-    parser.add_argument('--ontology', required=True)
 
     return parser
 
