@@ -47,7 +47,7 @@ class DataBuilderBaseline(data.DataBuilder):
         pass
 
     def _process_dialog(self, dialog, seq):
-        features = {}
+        features = set([])
         for msgs, state, actor, topic_id, topic_bio in zip(
                 dialog.messages,
                 dialog.states,
@@ -69,17 +69,17 @@ class DataBuilderBaseline(data.DataBuilder):
                 )
                 features.update(new_features)
 
-            true_msg, _ = msgs[0]
+            true_msg = msgs[0]
 
-            seq.data.append(features)
-            self._append_label_to_seq(0.0, seq, state, topic_id, topic_bio)
+            seq.data.append(list(features))
+            self._append_label_to_seq(seq, state, topic_id, topic_bio)
 
             for ftr in features:
                 self.feature_cnts[ftr] += 1
 
     def _extract_features(self, msgs, seq, in_actor):
-        features = {}
-        for msg, msg_score in msgs:
+        features = set([])
+        for msg in msgs:
             tokens = self._tokenize_msg(in_actor, msg)
             tokens = [self._tag_token(token, seq) for token in tokens]
 
@@ -88,19 +88,18 @@ class DataBuilderBaseline(data.DataBuilder):
 
             features.update(
                 self._tokens_to_features(
-                    tokens + tokens2 + tokens3,
-                    msg_score
+                    tokens + tokens2 + tokens3
                 )
             )
 
         return features
 
-    def _tokens_to_features(self, tokens, score):
-        features = {}
+    def _tokens_to_features(self, tokens):
+        features = set([])
         for feature in tokens:
             if type(feature) is tuple:
                 feature = '__'.join(feature)
             if not feature in features:
-                features[feature] = np.exp(score)
+                features.add(feature)
 
         return features

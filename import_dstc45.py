@@ -72,7 +72,7 @@ def import_dstc(data_dir, out_dir, flist, use_stringified_system_acts):
                 msg = utterance.transcript
             actor_id = Dialog.ACTORS_MAP[utterance.speaker]
             out_dialog.add_message(
-                [(msg, 1.0)],
+                [msg],
                 state,
                 actor_id,
                 utterance.segment_topic,

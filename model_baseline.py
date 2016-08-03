@@ -261,16 +261,13 @@ class BaselineModelKeras(object):
         logging.info('We have the following classes:')
         self._log_classes_info()
 
-    def init_model(self, in_train_dataset):
-        input_layer = Input(
-            name='input',
-            shape=(len(in_train_dataset[0]), len(self.vocab))
-        )
+    def init_model(self, in_X):
+        input_layer = Input(name='input', shape=in_X[0].shape)
 
         logging.info('Creating LSTM layer with %d neurons.' % (self.n_cells))
         main_lstm = LSTM(
-            self.n_cells,
-            name='lstm',
+            output_dim=self.n_cells,
+            name='main_lstm',
             dropout_W=self.p_drop
         )(input_layer)
 
@@ -292,7 +289,11 @@ class BaselineModelKeras(object):
             slot_mlps.append(
                 Dense(output_dim=n_classes, activation='softmax')(main_lstm)
             )
-        merge_layer = Merge(name='mlps_merged', mode='concat')(slot_mlps)
+        merge_layer = Merge(
+            name='mlps_merged',
+            mode='concat',
+            concat_axis=1
+        )(slot_mlps)
 
         self.model = Model(input=input_layer, output=merge_layer)
         self.model.compile(
@@ -308,8 +309,10 @@ class BaselineModelKeras(object):
         return self._prepare_data(seqs, slots, with_labels=True)
 
     def train(self, seqs, slots):
-        trainset_prepared = self.prepare_data_train(seqs, slots)
-        self.init_model(trainset_prepared)
+        X, y = self.prepare_data_train(seqs, slots)
+        self.init_model(X)
+        import pdb; pdb.set_trace()
+        self.model.fit(X, y, nb_epoch=100, batch_size=16)
 
     def prepare_data_predict(self, seqs, slots):
         return self._prepare_data(seqs, slots, with_labels=False)
@@ -324,8 +327,6 @@ class BaselineModelKeras(object):
 
     def _prepare_data(self, seqs, slots, with_labels=True):
         x = []
-        y_seq_id = []
-        y_time = []
         y_labels = [[] for slot in slots]
         for item in seqs:
             x_vecs = []
@@ -339,9 +340,6 @@ class BaselineModelKeras(object):
             labels = item['labels']
 
             for label in labels:
-                y_seq_id.append(len(x) - 1)
-                y_time.append(label['time'])
-
                 for i, slot in enumerate(slots):
                     lbl_val = label['slots'][slot]
                     if lbl_val < 0:
@@ -352,7 +350,6 @@ class BaselineModelKeras(object):
         x = padded(x, pad_by=[x_zero_pad]).transpose(1, 0, 2)
 
         data = [x]
-        data.extend([y_seq_id, y_time])
         if with_labels:
-            data.extend(y_labels)
+            data += [y_labels]
         return tuple(data)

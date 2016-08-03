@@ -9,7 +9,7 @@ import numpy as np
 
 import data_model
 
-word_re = re.compile(r'([A-Za-z0-9_]+)')
+word_re = re.compile(r'([\w_]+)', flags=re.UNICODE)
 
 
 def tokenize(text):
@@ -52,7 +52,6 @@ class Sequence(dict):
         self.source_dir = source_dir
         self.data = []
         self.data_debug = []
-        self.data_score = []
         self.data_actor = []
         self.labels = []
         self.token_labels = []
@@ -82,11 +81,10 @@ class DataBuilder(object):
     def __init__(
         self, slots, slot_groups, based_on, include_base_seqs,
         oov_ins_p, word_drop_p, include_system_utterances, nth_best,
-        score_bins, debug_dir, tagged, ontology, no_label_weight
+        debug_dir, tagged, ontology, no_label_weight
     ):
         self.slots = slots
         self.slot_groups = slot_groups
-        self.score_bins = score_bins
         self.ontology = ontology
         self.based_on = based_on
         self.include_base_seqs = include_base_seqs
@@ -112,8 +110,6 @@ class DataBuilder(object):
 
         n_labels = 0
 
-        self.msg_scores = []
-
         for dialog_ndx, dialog in enumerate(dialogs):
             self.f_dump_text.write('> %s\n' % dialog.session_id)
 
@@ -137,7 +133,7 @@ class DataBuilder(object):
         self.xd = Data()
         self.xd.initialize(
             self.slots, self.slot_groups, self.based_on,
-            self.include_base_seqs, self.score_bins,
+            self.include_base_seqs,
             self.tagged, self.ontology, self.tagger
         )
 
@@ -151,8 +147,8 @@ class DataBuilder(object):
         else:
             msg_id = self.nth_best
 
-        msg, msg_score = msgs[msg_id]
-        return msg, msg_score
+        msg = msgs[msg_id]
+        return msg
 
     def _process_dialog(self, dialog, seq):
         last_state = None
@@ -166,14 +162,14 @@ class DataBuilder(object):
         ):
             actor_is_system = actor == data_model.Dialog.ACTOR_SYSTEM
 
-            msg, msg_score = self._flatten_nbest_list(actor_is_system, msgs)
+            msg = self._flatten_nbest_list(actor_is_system, msgs)
             true_msg, _ = msgs[0]
 
             if not self.include_system_utterances and actor_is_system:
                 continue
             else:
                 self._process_msg(
-                    msg, msg_score, state, last_state,
+                    msg, state, last_state,
                     actor, seq, true_msg, topic_id, topic_bio
                 )
             last_state = state
@@ -186,16 +182,14 @@ class DataBuilder(object):
         self.f_dump_text.write('\n')
 
     def _process_msg(
-            self, msg, msg_score, state, last_state,
-            actor, seq, true_msg, topic_id, topic_bio
+        self, msg, state, last_state,
+        actor, seq, true_msg, topic_id, topic_bio
     ):
-        msg_score_bin = self.xd.get_score_bin(msg_score)
         token_seq = self._tokenize_msg(actor, msg)
         if topic_bio == 'O':
             state = {}
-            msg_score = 1.0
         self._dump_msg_info(
-            last_state, msg_score, msg_score_bin, state, token_seq, true_msg
+            last_state, state, token_seq, true_msg
         )
 
         for i, token in enumerate(token_seq):
@@ -207,19 +201,14 @@ class DataBuilder(object):
             if random.random() < self.oov_ins_p:
                 token = '#OOV'
 
-            self._append_token_to_seq(actor, msg_score_bin, seq, token, state)
+            self._append_token_to_seq(actor, seq, token, state)
 
         seq.true_input.append(true_msg)
-        self._append_label_to_seq(msg_score, seq, state, topic_id, topic_bio)
+        self._append_label_to_seq(seq, state, topic_id, topic_bio)
 
     def _dump_msg_info(
-        self, last_state, msg_score, msg_score_bin, state, token_seq, true_msg
+        self, last_state, state, token_seq, true_msg
     ):
-        self.f_dump_text.write(
-            ("%2.2f %d  " % (msg_score, msg_score_bin)) +
-            " ".join(token_seq) +
-            '\n'
-        )
         self.f_dump_text.write(("TRUE  " + true_msg + '\n'))
         self.f_dump_cca.write(" ".join(token_seq))
         self.f_dump_cca.write("\t")
@@ -243,7 +232,7 @@ class DataBuilder(object):
 
         return token_seq
 
-    def _append_token_to_seq(self, actor, msg_score_bin, seq, token, state):
+    def _append_token_to_seq(self, actor, seq, token, state):
         token_ndx = self.xd.get_token_ndx(token)
         if not self.tagged:
             seq.data.append(token_ndx)
@@ -255,7 +244,6 @@ class DataBuilder(object):
                 tagged_token = '@' + tagged_token
             tagged_token_ndx = self.xd.get_token_ndx(tagged_token)
             seq.data.append(tagged_token_ndx)
-        seq.data_score.append(msg_score_bin)
         seq.data_actor.append(actor)
         seq.data_debug.append(token)
 
@@ -270,17 +258,14 @@ class DataBuilder(object):
             return token
 
     def _append_label_to_seq(
-        self, msg_score, seq, state, segment_id, segment_bio
+        self, seq, state, segment_id, segment_bio
     ):
         label = {
             'time': len(seq.data) - 1,
-            'score': np.exp(msg_score),
             'slots': {},
             'segment_id': segment_id,
             'segment_bio': segment_bio
         }
-        if self.no_label_weight:
-            label['score'] = 1.0
 
         slot_labels = self.xd.state_to_label(state, self.slots)
         for slot, val in zip(self.slots, slot_labels):
@@ -335,7 +320,6 @@ class Data(object):
         'slots',
         'slot_groups',
         'stats',
-        'score_bins',
         'tagged'
     ]
 
@@ -360,8 +344,10 @@ class Data(object):
     def _finalize_initialization(self):
         self.vocab_rev = {val: key for key, val in self.vocab.iteritems()}
 
-    def initialize(self, slots, slot_groups, based_on, include_base_seqs,
-                   score_bins, tagged, ontology, tagger):
+    def initialize(
+        self, slots, slot_groups, based_on,
+        include_base_seqs, tagged, ontology, tagger
+    ):
         self.slots = slots
         self.slot_groups = slot_groups
         self.tagged = tagged
@@ -378,7 +364,6 @@ class Data(object):
                 self.sequences = data.sequences
             else:
                 self.sequences = []
-            self.score_bins = data.score_bins
         else:
             self.vocab = {
                 "#NOTHING": 0,
@@ -389,7 +374,6 @@ class Data(object):
             self.vocab_fixed = False
             self.stats = None
             self.sequences = []
-            self.score_bins = score_bins
 
             self.classes = self._build_initial_classes(ontology)
 
@@ -453,18 +437,6 @@ class Data(object):
                 res = self.classes[slot][self.null_class]
 
             return res
-
-    def get_score_bin(self, msg_score):
-        msg_score_bin = 0
-        if self.score_bins:
-            for i, x in enumerate(self.score_bins):
-                if np.exp(msg_score) < x:
-                    # curr_score_bin = "__%d" % i
-                    msg_score_bin = i
-                    break
-            else:
-                msg_score_bin = len(self.score_bins) - 1
-        return msg_score_bin
 
     def save(self, out_file):
         with open(out_file, 'w') as f_out:

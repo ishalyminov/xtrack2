@@ -85,7 +85,6 @@ def prepare_experiment(
             word_drop_p=0.0,
             include_system_utterances=True,
             nth_best=0,
-            score_bins=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.01],
             ontology=ontology,
             debug_dir=debug_dir,
             **builder_opts
