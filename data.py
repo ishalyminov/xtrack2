@@ -163,7 +163,7 @@ class DataBuilder(object):
             actor_is_system = actor == data_model.Dialog.ACTOR_SYSTEM
 
             msg = self._flatten_nbest_list(actor_is_system, msgs)
-            true_msg, _ = msgs[0]
+            true_msg = msgs[0]
 
             if not self.include_system_utterances and actor_is_system:
                 continue

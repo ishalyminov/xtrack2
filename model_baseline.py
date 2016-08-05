@@ -1,6 +1,7 @@
 import logging
 import time
 
+import operator
 import theano
 import theano.tensor as tt
 
@@ -312,7 +313,8 @@ class BaselineModelKeras(object):
         X, y = self.prepare_data_train(seqs, slots)
         self.init_model(X)
         import pdb; pdb.set_trace()
-        self.model.fit(X, y, nb_epoch=100, batch_size=16)
+        self.model.fit(X, y, nb_epoch=100, verbose=True, shuffle=True)
+        #  self.model.fit(X, y, nb_epoch=100, batch_size=16)
 
     def prepare_data_predict(self, seqs, slots):
         return self._prepare_data(seqs, slots, with_labels=False)
@@ -325,9 +327,9 @@ class BaselineModelKeras(object):
 
         return [token_padding]
 
-    def _prepare_data(self, seqs, slots, with_labels=True):
+    def __prepare_data(self, seqs, slots, with_labels=True):
         x = []
-        y_labels = [[] for slot in slots]
+        y_labels = []
         for item in seqs:
             x_vecs = []
             for feature in item['data']:
@@ -353,3 +355,62 @@ class BaselineModelKeras(object):
         if with_labels:
             data += [y_labels]
         return tuple(data)
+
+    def _prepare_data(self, seqs, slots, with_labels=True):
+        x = []
+        y_labels = []
+        x_one_hot_length = len(self.vocab)
+        y_one_hot_length = sum(map(len, self.slot_classes.values()))
+
+        for sequence in seqs:
+            one_hot_sequence = []
+            for one_hot in sequence['data']:
+                x_vec = np.zeros(x_one_hot_length)
+                x_vec[one_hot] = 1
+                one_hot_sequence.append(x_vec)
+            x.append(one_hot_sequence)
+            labels = sequence['labels']
+
+            one_hot_frame_sequence = [
+                np.zeros(y_one_hot_length)
+                for _ in range(len(one_hot_sequence))
+            ]
+            #for frame_label in labels:
+            #    time_step = frame_label['time']
+            #    one_hot_frame_sequence[time_step] = \
+            #        self._build_frame_one_hot(frame_label, slots)
+            one_hot_frame_sequence = \
+                self._build_frame_one_hot(labels[-1], slots)
+            y_labels.append(one_hot_frame_sequence)
+
+        assert len(x) == len(y_labels)
+        # for x_seq, y_label_seq in zip(x, y_labels):
+        #     assert len(x_seq) == len(y_label_seq)
+
+        x_zero_pad = np.zeros(x_one_hot_length)
+        x = padded(x, pad_by=[x_zero_pad])  # .transpose(1, 0, 2)
+        # y_zero_pad = np.zeros(y_one_hot_length)
+        # y_labels = padded(y_labels, pad_by=[y_zero_pad])  # .transpose(1, 0, 2)
+
+        data = [x]
+        if with_labels:
+            data += [np.array(y_labels)]
+
+        return tuple(data)
+
+    def _build_frame_one_hot(self, in_frame_label, in_slots):
+        frame_map = {
+            slot: np.zeros(len(self.slot_classes[slot]))
+            for slot in in_slots
+        }
+        for index, slot in enumerate(in_slots):
+            lbl_val = in_frame_label['slots'][slot]
+            if not lbl_val:
+                continue
+            frame_map[slot][lbl_val] = 1
+        one_hot_concatenated = reduce(
+            lambda x, y: np.concatenate((x, y)),
+            [frame_map[slot] for slot in in_slots],
+            []
+        )
+        return one_hot_concatenated

@@ -82,7 +82,7 @@ def prepare_experiment(
             slots=slots,
             slot_groups=slot_groups,
             oov_ins_p=0.1 if dst_dataset == 'train' else 0.0,
-            word_drop_p=0.0,
+            word_drop_p=0.1,
             include_system_utterances=True,
             nth_best=0,
             ontology=ontology,

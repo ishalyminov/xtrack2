@@ -76,7 +76,7 @@ def compute_stats(
 
 
 def print_mb(slots, classes, vocab_rev, mb, prediction):
-    x, x_score, x_switch, x_actor, y_seq_id, y_time, y_labels = mb
+    x, x_switch, x_actor, y_seq_id, y_time, y_labels = mb
 
     labels = {}
     pred_id = {}
@@ -330,7 +330,7 @@ def _get_example_list(minibatches, sorted_items, xtd_t):
     for ii, (i, loss) in enumerate(sorted_items):
         _, d = minibatches[i]
 
-        x, x_score, x_switch, x_actor, y_seq_id, y_time, y_labels = d
+        x, x_switch, x_actor, y_seq_id, y_time, y_labels = d
 
         example = []
         for d in zip(*x):
@@ -367,11 +367,9 @@ def get_model(
     p_drop, init_emb_from, input_n_layers, input_n_hidden,
     input_activation,
     eval_on_full_train, x_include_token_ftrs, enable_branch_exp, l1, l2,
-    x_include_mlp, enable_token_supervision, model_type,
-    train_data
+    x_include_mlp, enable_token_supervision, model_type, train_data
 ):
     n_input_tokens = len(train_data.vocab)
-    n_input_score_bins = len(train_data.score_bins)
     slots = train_data.slots
     classes = train_data.classes
     class_groups = train_data.slot_groups
@@ -512,8 +510,6 @@ def main(
     xtd_v = Data.load(valid_path)
 
     slots = xtd_t.slots
-    classes = xtd_t.classes
-    class_groups = xtd_t.slot_groups
 
     t = time.time()
 
@@ -535,7 +531,7 @@ def main(
         x_include_mlp, enable_token_supervision, model_type, xtd_t
     )
 
-    model.train(xtd_v.sequences, slots)
+    model.train(xtd_t.sequences, slots)
     logging.info('Rebuilding took: %.1f' % (time.time() - t))
 
     if load_params:
