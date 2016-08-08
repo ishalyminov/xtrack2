@@ -76,125 +76,6 @@ def init_env(output_dir):
     return output_dir
 
 
-def eval_model(
-    model,
-    slots,
-    classes,
-    xtd_t,
-    xtd_v,
-    train_data,
-    valid_data,
-    class_groups,
-    best_acc,
-    best_acc_train,
-    tracker_valid,
-    tracker_train,
-    track_log
-):
-    prediction_valid = model._predict(*valid_data)
-    visualize_prediction(xtd_v, prediction_valid)
-
-    eval_train = train_data is not None
-
-    if eval_train:
-        prediction_train = model._predict(*train_data)
-        pass
-    else:
-        prediction_train = None
-
-    logging.info('Results:')
-    for group_name, slot_selection in class_groups.iteritems():
-        joint_slot_name = 'joint_%s' % str(group_name)
-        if eval_train:
-            train_conf_mats = compute_stats(slots, slot_selection, classes,
-                                        prediction_train,
-                                        train_data['y_labels'],
-                                        joint_slot_name)
-
-        valid_conf_mats = compute_stats(slots, slot_selection, classes,
-                                        prediction_valid,
-                                        valid_data['y_labels'], joint_slot_name)
-
-        for slot in slot_selection + [joint_slot_name]:
-            p = P()
-            p.tab(3)
-            p.print_out(slot)
-            p.tab(15)
-            acc = int(valid_conf_mats[slot].accuracy() * 100)
-            best_acc[slot] = max(best_acc[slot], acc)
-            p.print_out("%d (best %d)" % (acc, best_acc[slot]))
-            if eval_train:
-                p.tab(30)
-                acc = int(train_conf_mats[slot].accuracy() * 100)
-                best_acc_train[slot] = max(best_acc_train[slot], acc)
-                p.print_out("%d (%d)" % (acc, best_acc_train[slot]))
-            logging.info(p.render())
-
-            cmat = valid_conf_mats[slot].mat
-            if eval_train:
-                cmat_train = train_conf_mats[slot].mat
-            else:
-                cmat_train = None
-
-            if slot != joint_slot_name:
-                slot_classes = classes[slot]
-            else:
-                slot_classes = {'correct': 1, 'incorrect': 0}
-            #slot_classes_rev = {v: k for k, v in slot_classes.iteritems()}
-
-            for cls_name, i in sorted(slot_classes.iteritems()):
-                p, r, total_i = compute_prt(cmat, i)
-                pp = P()
-                pp.tab(4)
-                pp.print_out("%10s P(%3d) R(%3d) Total(%4d)" % (cls_name[:10],
-                                                     int(p),
-                                                     int(r),
-                                                     total_i))
-                if eval_train:
-                    p, r, total_i = compute_prt(cmat_train, i)
-                    pp.tab(43)
-                    pp.print_out(
-                        "%10s P(%3d) R(%3d) Total(%4d)" % (
-                            cls_name[:10], int(p), int(r), total_i
-                        )
-                    )
-                logging.info(pp.render())
-
-
-    _, accuracy = tracker_valid.track(tracking_log_file_name=track_log)
-    logging.info('Tracking accuracy: %d (valid)' % int(accuracy * 100))
-
-    return accuracy
-
-
-def _get_example_list(minibatches, sorted_items, xtd_t):
-    examples = []
-    for ii, (i, loss) in enumerate(sorted_items):
-        _, d = minibatches[i]
-
-        x, x_switch, x_actor, y_seq_id, y_time, y_labels = d
-
-        example = []
-        for d in zip(*x):
-            ln = ""
-            for w in d:
-                ln += xtd_t.vocab_rev[w]
-                ln += " "
-            example.append(ln)
-        examples.append(example)
-    return examples
-
-
-def get_extreme_examples(mb_loss, minibatches, xtd_t):
-    sorted_items = sorted(mb_loss.items(), key=lambda e: -e[1])
-    worst_mb_ndxs = sorted_items[:5]
-    worst_examples = _get_example_list(minibatches, worst_mb_ndxs, xtd_t)
-    best_mb_ndxs = sorted_items[-5:]
-    best_examples = _get_example_list(minibatches, best_mb_ndxs, xtd_t)
-
-    return (worst_examples, worst_mb_ndxs), (best_examples, best_mb_ndxs)
-
-
 def get_model(in_args, in_train_data):
     with codecs.getreader('utf-8')(open(in_args.model_config_file)) as input:
         model_config = json.load(input)
@@ -270,8 +151,8 @@ def main(in_args):
     t = time.time()
 
     model = get_model(in_args, xtd_t)
-    X, y = model.prepare_data(xtd_t.sequences, xtd_t.slots)
-    X_valid, y_valid = model.prepare_data(xtd_v.sequences, xtd_v.slots)
+    X, y = model.prepare_data_train(xtd_t.sequences, xtd_t.slots)
+    X_valid, y_valid = model.prepare_data_test(xtd_v.sequences, xtd_v.slots)
 
     import pdb; pdb.set_trace()
     logging.info('Building model: %s' % in_args.model_type)
