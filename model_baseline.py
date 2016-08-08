@@ -1,3 +1,5 @@
+import codecs
+import json
 import logging
 
 import numpy as np
@@ -102,11 +104,47 @@ class BaselineModelKeras(object):
             verbose=True
         )
 
+    def predict(self, X):
+        return self.model.predict(
+            X,
+            batch_size=self.config['mb_size'],
+            verbose=True
+        )
+
     def save(self, in_file_name):
         self.model.save(in_file_name)
+        self.save_model_params(in_file_name + '.model_params.json')
 
-    def load(self, in_file_name):
-        self.model = load_model(in_file_name)
+    def _save_model_params(self, in_file_name):
+        with codecs.getwriter('utf-8')(open(in_file_name, 'w')) as output:
+            json.dump(
+                {
+                    'vocab': self.vocab,
+                    'max_sequence_length': self.max_sequence_length,
+                    'slots': self.slots,
+                    'slot_classes': self.slot_classes,
+                    'sonfig': self.config
+                    'save_path': self.save_path
+                },
+                output
+            )
+
+    @classmethod
+    def load(in_file_name):
+        result = BaselineModelKeras(None, None, None, None, None)
+        result._load_model_params(in_file_name + '.model_params.json')
+        result.model = load_model(in_file_name)
+        return result
+
+    def _load_model_params(self, in_file_name):
+        with codecs.reader('utf-8')(open(in_file_name)) as input:
+            params_json = json.load(input)
+            self.vocab = params_json['vocab']
+            self.max_sequence_length = params_json['max_sequence_length']
+            self.slots = params_json['slots']
+            self.slot_classes = params_json['slot_classes']
+            self.config = params_json['sonfig']
+            self.save_path = params_json['save_path']
 
     def prepare_data_train(self, sequences, slots):
         X, y = self.prepare_data(sequences, slots)

@@ -1,4 +1,3 @@
-import collections
 import time
 import json
 import logging
@@ -6,7 +5,6 @@ import numpy as np
 import argparse
 
 from data import Data, Tagger
-from dstc5_scripts import ontology_reader
 from utils import pdb_on_error
 from model import Model
 from model_baseline import BaselineModelKeras
@@ -14,6 +12,7 @@ from model_baseline import BaselineModelKeras
 from dstc5_scripts.stat_classes import (
     Stat_Accuracy, Stat_Frame_Precision_Recall
 )
+
 
 def init_logging():
     # Setup logging.
@@ -113,22 +112,23 @@ class XTrack2DSTCTracker(object):
             res &= val == 0
         return res
 
-    def _make_model_predictions(self, data):
+    def _make_model_predictions(self, X):
         preds = []
         for model in self.models:
-            pred = model._predict(*data)
+            pred = model.predict(X)
             preds.append(pred)
         return preds
 
-    def track(self, tracking_log_file_name=None, output_len_accuracy=False):
+    def track(self, tracking_log_file_name=None):
         accuracy_stat = Stat_Accuracy()
         frame_precision_recall_stat = Stat_Frame_Precision_Recall()
-        data = self.main_model.prepare_data_predict(
+        X = self.main_model.prepare_data_predict(
             self.data.sequences,
-            self.data.slots
+            self.data.slots,
+            with_labels=False
         )
 
-        preds = self._make_model_predictions(data)
+        preds = self._make_model_predictions(X)
 
         pred = []
         for slot_preds in zip(*preds):
@@ -244,7 +244,7 @@ def main(dataset, data_file, output_file, params_file, model_type):
             model_cls = SimpleConvModel
         elif model_type == 'baseline':
             model_cls = BaselineModelKeras
-        models.append(model_cls.load(pf, build_train=False))
+        models.append(model_cls.load(pf))
 
     logging.info('Loading data: %s' % data_file)
     data = Data.load(data_file)
