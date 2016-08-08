@@ -1,7 +1,6 @@
 import logging
 import time
 
-import operator
 import theano
 import theano.tensor as tt
 
@@ -13,6 +12,7 @@ from passage.model import NeuralModel
 from keras.models import Model
 from keras.layers import Dense, Activation, Input, Merge
 from keras.layers.recurrent import LSTM
+from keras.callbacks import ModelCheckpoint
 
 
 class BaselineModel(NeuralModel):
@@ -241,23 +241,12 @@ class BaselineModelKeras(object):
             for val, val_ndx in sorted(vals.iteritems(), key=lambda x: x[1]):
                 logging.info('    - %s (%d)' % (val, val_ndx))
 
-    def __init__(
-        self, slots, slot_classes, opt_type,
-        oclf_n_hidden, oclf_n_layers, oclf_activation,
-        n_cells,
-        debug, p_drop,
-        vocab,
-        input_n_layers, input_n_hidden, input_activation,
-        token_features, token_supervision,
-        momentum, enable_branch_exp, l1, l2, build_train=True
-    ):
+    def __init__(self, slots, slot_classes, vocab, config, in_save_path):
         self.vocab = vocab
         self.slots = slots
         self.slot_classes = slot_classes
-        self.n_cells = n_cells
-        self.p_drop = p_drop
-        self.oclf_n_layers = oclf_n_layers
-        self.opt_type = opt_type
+        self.config = config
+        self.save_path = in_save_path
 
         logging.info('We have the following classes:')
         self._log_classes_info()
@@ -265,11 +254,13 @@ class BaselineModelKeras(object):
     def init_model(self, in_X):
         input_layer = Input(name='input', shape=in_X[0].shape)
 
-        logging.info('Creating LSTM layer with %d neurons.' % (self.n_cells))
+        logging.info(
+            'Creating LSTM layer with %d neurons.' % (self.config['n_cells'])
+        )
         main_lstm = LSTM(
-            output_dim=self.n_cells,
+            output_dim=self.config['n_cells'],
             name='main_lstm',
-            dropout_W=self.p_drop
+            dropout_W=self.config['p_drop']
         )(input_layer)
 
         slot_mlps = []
@@ -288,7 +279,10 @@ class BaselineModelKeras(object):
             #    )
             n_classes = len(self.slot_classes[slot])
             slot_mlps.append(
-                Dense(output_dim=n_classes, activation='softmax')(main_lstm)
+                Dense(
+                    output_dim=n_classes,
+                    activation=self.config['oclf_activation']
+                )(main_lstm)
             )
         merge_layer = Merge(
             name='mlps_merged',
@@ -298,7 +292,7 @@ class BaselineModelKeras(object):
 
         self.model = Model(input=input_layer, output=merge_layer)
         self.model.compile(
-            optimizer=self.opt_type,
+            optimizer=self.config['opt_type'],
             loss='categorical_crossentropy',
             metrics=['accuracy']
         )
@@ -312,9 +306,29 @@ class BaselineModelKeras(object):
     def train(self, seqs, slots):
         X, y = self.prepare_data_train(seqs, slots)
         self.init_model(X)
-        import pdb; pdb.set_trace()
-        self.model.fit(X, y, nb_epoch=100, verbose=True, shuffle=True)
-        #  self.model.fit(X, y, nb_epoch=100, batch_size=16)
+        checkpointer = ModelCheckpoint(
+            filepath=self.save_path,
+            verbose=True,
+            save_best_only=True
+        )
+        self.model.fit(
+            X,
+            y,
+            batch_size=self.config['mb_size'],
+            nb_epoch=self.config['n_epochs'],
+            verbose=True,
+            shuffle=True,
+            callbacks=[checkpointer]
+        )
+
+    def evaluate(self, seqs, slots):
+        X, y = self.prepare_data_train(seqs, slots)
+        return self.model.evaluate(
+            X,
+            y,
+            batch_size=self.config['mb_size'],
+            verbose=True
+        )
 
     def prepare_data_predict(self, seqs, slots):
         return self._prepare_data(seqs, slots, with_labels=False)
@@ -326,6 +340,9 @@ class BaselineModelKeras(object):
             token_padding.append(0)
 
         return [token_padding]
+
+    def save(self, in_file_name):
+        self.model.save(in_file_name)
 
     def __prepare_data(self, seqs, slots, with_labels=True):
         x = []

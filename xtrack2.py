@@ -1,3 +1,4 @@
+import codecs
 from collections import defaultdict
 import itertools
 import json
@@ -24,7 +25,6 @@ from model import Model
 from model_simple_conv import SimpleConvModel
 from model_baseline import BaselineModelKeras
 from dstc_tracker import XTrack2DSTCTracker
-from dstc5_scripts.ontology_reader import OntologyReader
 
 theano.config.floatX = 'float32'
 #theano.config.allow_gc=False
@@ -33,7 +33,7 @@ theano.config.floatX = 'float32'
 theano.config.mode = 'FAST_COMPILE'
 #theano.config.linker = 'py'
 #theano.config.mode = 'FAST_RUN'
-#theano.config.optimizer = 'fast_compile'
+theano.config.optimizer = 'fast_compile'
 
 
 class TrainingStats(object):
@@ -228,12 +228,6 @@ def compute_prt(cmat, i):
     return p, r, total_i
 
 
-def visualize_mb(model, mb):
-    prediction = model._predict(*mb)
-
-    #print_mb(xtd_v, prediction_valid)
-
-
 def eval_model(
     model,
     slots,
@@ -353,61 +347,15 @@ def get_extreme_examples(mb_loss, minibatches, xtd_t):
     return (worst_examples, worst_mb_ndxs), (best_examples, best_mb_ndxs)
 
 
-def get_model(
-    args_lst,
-    eid, experiment_path, out, valid_after,
-    load_params, save_params,
-    debug, track_log,
-    n_cells, emb_size, x_include_score, no_train_emb,
-    n_epochs, lr, opt_type, momentum,
-    mb_size, mb_mult_data,
-    oclf_n_hidden, oclf_n_layers, oclf_activation,
-    rnn_n_layers,
-    lstm_peepholes, lstm_bidi,
-    p_drop, init_emb_from, input_n_layers, input_n_hidden,
-    input_activation,
-    eval_on_full_train, x_include_token_ftrs, enable_branch_exp, l1, l2,
-    x_include_mlp, enable_token_supervision, model_type, train_data
-):
-    n_input_tokens = len(train_data.vocab)
-    slots = train_data.slots
-    classes = train_data.classes
-    class_groups = train_data.slot_groups
+def get_model(in_args, in_train_data):
+    with codecs.getreader('utf-8')(open(in_args.model_config_file)) as input:
+        model_config = json.load(input)
+    n_input_tokens = len(in_train_data.vocab)
+    slots = in_train_data.slots
 
-    if model_type == 'lstm':
-        return Model(
-            slots=slots,
-            slot_classes=train_data.classes,
-            emb_size=emb_size,
-            no_train_emb=no_train_emb,
-            x_include_score=x_include_score,
-            x_include_token_ftrs=x_include_token_ftrs,
-            x_include_mlp=x_include_mlp,
-            n_input_score_bins=n_input_score_bins,
-            n_cells=n_cells,
-            n_input_tokens=n_input_tokens,
-            oclf_n_hidden=oclf_n_hidden,
-            oclf_n_layers=oclf_n_layers,
-            oclf_activation=oclf_activation,
-            debug=debug,
-            rnn_n_layers=rnn_n_layers,
-            lstm_peepholes=lstm_peepholes,
-            lstm_bidi=lstm_bidi,
-            opt_type=opt_type,
-            momentum=momentum,
-            p_drop=p_drop,
-            init_emb_from=init_emb_from,
-            vocab=train_data.vocab,
-            input_n_layers=input_n_layers,
-            input_n_hidden=input_n_hidden,
-            input_activation=input_activation,
-            token_features=None,
-            enable_branch_exp=enable_branch_exp,
-            token_supervision=enable_token_supervision,
-            l1=l1,
-            l2=l2
-        )
-    elif model_type == 'conv':
+    if in_args.model_type == 'lstm':
+        return Model(slots, in_train_data.classes, model_config)
+    if in_args.model_type == 'conv':
         return SimpleConvModel(
             slots=slots,
             slot_classes=train_data.classes,
@@ -440,109 +388,58 @@ def get_model(
             l1=l1,
             l2=l2
         )
-    elif model_type == 'baseline':
+    if in_args.model_type == 'baseline':
         return BaselineModelKeras(
-            slots=slots,
-            slot_classes=train_data.classes,
-            oclf_n_hidden=oclf_n_hidden,
-            oclf_n_layers=oclf_n_layers,
-            oclf_activation=oclf_activation,
-            n_cells=n_cells,
-            debug=debug,
-            opt_type=opt_type,
-            momentum=momentum,
-            p_drop=p_drop,
-            vocab=train_data.vocab,
-            input_n_layers=input_n_layers,
-            input_n_hidden=input_n_hidden,
-            input_activation=input_activation,
-            token_features=None,
-            enable_branch_exp=enable_branch_exp,
-            token_supervision=enable_token_supervision,
-            l1=l1,
-            l2=l2
+            slots,
+            in_train_data.classes,
+            in_train_data.vocab,
+            model_config,
+            os.path.join(
+                in_args.out + os.path.basename(in_args.experiment_path),
+                'baseline.h5'
+            )
         )
-    else:
-        raise Exception()
+    raise RuntimeError('"{}" - unknown model type'.format(in_args.model_type))
 
 
-def main(
-    args_lst,
-    eid, experiment_path, out, valid_after,
-    load_params, save_params,
-    debug, track_log,
-    n_cells, emb_size, x_include_score, no_train_emb,
-    n_epochs, lr, opt_type, momentum,
-    mb_size, mb_mult_data,
-    oclf_n_hidden, oclf_n_layers, oclf_activation,
-    rnn_n_layers,
-    lstm_peepholes, lstm_bidi,
-    p_drop, init_emb_from, input_n_layers, input_n_hidden,
-    input_activation,
-    eval_on_full_train, x_include_token_ftrs, enable_branch_exp, l1, l2,
-    x_include_mlp, enable_token_supervision, model_type
-):
-
-    output_dir = init_env(out + os.path.basename(experiment_path))
+def main(in_args):
+    output_dir = \
+        init_env(in_args.out + os.path.basename(in_args.experiment_path))
     mon_train = TrainingStats()
     mon_valid = TrainingStats()
     mon_extreme_examples = TrainingStats()
     stats_obj = dict(
         train=mon_train.data,
-        mon_extreme_examples=mon_extreme_examples.data,
-        args=args_lst
+        mon_extreme_examples=mon_extreme_examples.data
     )
     logging.info('XTrack has been started.')
     logging.info('GIT rev: %s' % get_git_revision_hash())
     logging.info('Output dir: %s' % output_dir)
     logging.info('Initializing random seed to 271.')
     random.seed(271)
-    logging.info('Argv: %s' % str(sys.argv))
-    logging.info('Effective args:')
-    for arg_name, arg_value in args_lst:
-        logging.info('    %s: %s' % (arg_name, arg_value))
-    logging.info('Experiment path: %s' % experiment_path)
+    logging.info('Experiment path: %s' % in_args.experiment_path)
 
-    train_path = os.path.join(experiment_path, 'train.json')
+    train_path = os.path.join(in_args.experiment_path, 'train.json')
     xtd_t = Data.load(train_path)
 
-    valid_path = os.path.join(experiment_path, 'dev.json')
+    valid_path = os.path.join(in_args.experiment_path, 'dev.json')
     xtd_v = Data.load(valid_path)
 
     slots = xtd_t.slots
 
     t = time.time()
 
-    logging.info('Building model: %s' % model_type)
-    model = get_model(
-        args_lst,
-        eid, experiment_path, out, valid_after,
-        load_params, save_params,
-        debug, track_log,
-        n_cells, emb_size, x_include_score, no_train_emb,
-        n_epochs, lr, opt_type, momentum,
-        mb_size, mb_mult_data,
-        oclf_n_hidden, oclf_n_layers, oclf_activation,
-        rnn_n_layers,
-        lstm_peepholes, lstm_bidi,
-        p_drop, init_emb_from, input_n_layers, input_n_hidden,
-        input_activation,
-        eval_on_full_train, x_include_token_ftrs, enable_branch_exp, l1, l2,
-        x_include_mlp, enable_token_supervision, model_type, xtd_t
-    )
+    logging.info('Building model: %s' % in_args.model_type)
+    model = get_model(in_args, xtd_t)
 
     model.train(xtd_t.sequences, slots)
-    logging.info('Rebuilding took: %.1f' % (time.time() - t))
+    logging.info('Training took: %.1f' % (time.time() - t))
 
-    if load_params:
-        logging.info('Loading parameters from: %s' % load_params)
-        model.load_params(load_params)
 
+    model.evaluate(xtd_v.sequences, slots)
     tracker_valid = XTrack2DSTCTracker(xtd_v, [model])
-    tracker_train = XTrack2DSTCTracker(xtd_t, [model])
 
     valid_data_y = model.prepare_data_train(xtd_v.sequences, slots)
-    valid_data = model.prepare_data_predict(xtd_v.sequences, slots)
     if not eval_on_full_train:
         selected_train_seqs = []
         for i in range(100):
@@ -679,71 +576,31 @@ def main(
 
 
 def build_argument_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('experiment_path')
+    result = argparse.ArgumentParser()
+    result.add_argument(
+        '--model_config_file',
+        default=os.path.join('model_config', 'baseline.json')
+    )
+    result.add_argument('experiment_path')
 
-    parser.add_argument('--eid', default='xtrack_experiment')
-    parser.add_argument('--valid_after', default=None, type=int)
+    result.add_argument('--eid', default='xtrack_experiment')
+    result.add_argument('--valid_after', default=None, type=int)
 
     # Experiment params.
-    parser.add_argument('--load_params', default=None)
-    parser.add_argument('--save_params', default=None)
-    parser.add_argument('--out', default='xtrack2_out')
+    result.add_argument('--load_params', default=None)
+    result.add_argument('--save_params', default=None)
+    result.add_argument('--out', default='xtrack2_out')
 
-    parser.add_argument('--model_type', default="lstm", type=str)
+    result.add_argument('--model_type', default='baseline', type=str)
 
-    # XTrack params.
-    parser.add_argument('--n_epochs', default=10, type=int)
-    parser.add_argument('--lr', default=0.1, type=float)
-    parser.add_argument('--momentum', default=0.9, type=float)
-    parser.add_argument('--p_drop', default=0.0, type=float)
-    parser.add_argument('--opt_type', default='rprop', type=str)
-    parser.add_argument('--mb_size', default=16, type=int)
-    parser.add_argument('--mb_mult_data', default=1, type=int)
-    parser.add_argument('--l1', default=0.0, type=float)
-    parser.add_argument('--l2', default=0.0, type=float)
+    result.add_argument('--debug', action='store_true')
+    result.add_argument('--track_log', default='track_log.txt', type=str)
 
-    parser.add_argument('--n_cells', default=5, type=int)
-    parser.add_argument('--emb_size', default=7, type=int)
-    parser.add_argument('--x_include_score', default=False, action='store_true')
-    parser.add_argument(
-        '--x_include_token_ftrs', default=False, action='store_true'
-    )
-    parser.add_argument('--x_include_mlp', default=False, action='store_true')
-    parser.add_argument('--init_emb_from', default=None, type=str)
-    parser.add_argument('--no_train_emb', default=False, action='store_true')
-
-    parser.add_argument('--input_n_hidden', default=32, type=int)
-    parser.add_argument('--input_n_layers', default=0, type=int)
-    parser.add_argument('--input_activation', default="sigmoid", type=str)
-
-    parser.add_argument('--oclf_n_hidden', default=32, type=int)
-    parser.add_argument('--oclf_n_layers', default=0, type=int)
-    parser.add_argument('--oclf_activation', default="tanh", type=str)
-
-    parser.add_argument('--rnn_n_layers', default=1, type=int)
-
-    parser.add_argument('--lstm_peepholes', default=False, action='store_true')
-    parser.add_argument('--lstm_bidi', default=True, action='store_true')
-
-    parser.add_argument('--debug', default=True, action='store_true')
-    parser.add_argument('--track_log', default='track_log.txt', type=str)
-    parser.add_argument(
-        '--eval_on_full_train', default=False, action='store_true'
-    )
-    parser.add_argument(
-        '--enable_branch_exp', default=False, action='store_true'
-    )
-    parser.add_argument(
-        '--enable_token_supervision', default=False, action='store_true'
-    )
-
-    return parser
-
+    return result
 
 if __name__ == '__main__':
     parser = build_argument_parser()
     args = parser.parse_args()
     pdb_on_error()
-    args_lst = list(sorted(vars(args).iteritems()))
-    main(args_lst, **vars(args))
+
+    main(args)
