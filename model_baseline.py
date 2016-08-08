@@ -222,7 +222,6 @@ class BaselineModel(NeuralModel):
                         lbl_val = len(self.slot_classes[slot]) + lbl_val
                     y_labels[i].append(lbl_val)
 
-        import pdb; pdb.set_trace()
         x_zero_pad = np.zeros((len(self.vocab), ))
         x = padded(x, pad_by=[x_zero_pad])
         x = x.transpose(1, 0, 2)
@@ -300,11 +299,7 @@ class BaselineModelKeras(object):
     def init_loaded(self):
         pass
 
-    def prepare_data_train(self, seqs, slots):
-        return self._prepare_data(seqs, slots, with_labels=True)
-
-    def train(self, seqs, slots):
-        X, y = self.prepare_data_train(seqs, slots)
+    def train(self, X, y, X_valid, y_valid):
         self.init_model(X)
         checkpointer = ModelCheckpoint(
             filepath=self.save_path,
@@ -318,10 +313,11 @@ class BaselineModelKeras(object):
             nb_epoch=self.config['n_epochs'],
             verbose=True,
             shuffle=True,
-            callbacks=[checkpointer]
+            callbacks=[checkpointer],
+            validation_data=(X_valid, y_valid)
         )
 
-    def evaluate(self, seqs, slots):
+    def evaluate(self, X, y):
         X, y = self.prepare_data_train(seqs, slots)
         return self.model.evaluate(
             X,
@@ -330,50 +326,10 @@ class BaselineModelKeras(object):
             verbose=True
         )
 
-    def prepare_data_predict(self, seqs, slots):
-        return self._prepare_data(seqs, slots, with_labels=False)
-
-    def _prepare_y_token_labels_padding(self):
-        token_padding = []
-        for slot in self.slots:
-            token_padding.append(0)
-            token_padding.append(0)
-
-        return [token_padding]
-
     def save(self, in_file_name):
         self.model.save(in_file_name)
 
-    def __prepare_data(self, seqs, slots, with_labels=True):
-        x = []
-        y_labels = []
-        for item in seqs:
-            x_vecs = []
-            for feature in item['data']:
-                x_vec = np.zeros((len(self.vocab),))
-                x_vec[feature] = 1
-                x_vecs.append(x_vec)
-
-            x.append(x_vecs)
-
-            labels = item['labels']
-
-            for label in labels:
-                for i, slot in enumerate(slots):
-                    lbl_val = label['slots'][slot]
-                    if lbl_val < 0:
-                        lbl_val = len(self.slot_classes[slot]) + lbl_val
-                    y_labels[i].append(lbl_val)
-
-        x_zero_pad = np.zeros((len(self.vocab),))
-        x = padded(x, pad_by=[x_zero_pad]).transpose(1, 0, 2)
-
-        data = [x]
-        if with_labels:
-            data += [y_labels]
-        return tuple(data)
-
-    def _prepare_data(self, seqs, slots, with_labels=True):
+    def prepare_data(self, seqs, slots, with_labels=True):
         x = []
         y_labels = []
         x_one_hot_length = len(self.vocab)
@@ -392,22 +348,14 @@ class BaselineModelKeras(object):
                 np.zeros(y_one_hot_length)
                 for _ in range(len(one_hot_sequence))
             ]
-            #for frame_label in labels:
-            #    time_step = frame_label['time']
-            #    one_hot_frame_sequence[time_step] = \
-            #        self._build_frame_one_hot(frame_label, slots)
             one_hot_frame_sequence = \
                 self._build_frame_one_hot(labels[-1], slots)
             y_labels.append(one_hot_frame_sequence)
 
         assert len(x) == len(y_labels)
-        # for x_seq, y_label_seq in zip(x, y_labels):
-        #     assert len(x_seq) == len(y_label_seq)
 
         x_zero_pad = np.zeros(x_one_hot_length)
-        x = padded(x, pad_by=[x_zero_pad])  # .transpose(1, 0, 2)
-        # y_zero_pad = np.zeros(y_one_hot_length)
-        # y_labels = padded(y_labels, pad_by=[y_zero_pad])  # .transpose(1, 0, 2)
+        x = padded(x, pad_by=[x_zero_pad])
 
         data = [x]
         if with_labels:

@@ -36,131 +36,6 @@ theano.config.mode = 'FAST_COMPILE'
 theano.config.optimizer = 'fast_compile'
 
 
-class TrainingStats(object):
-    def __init__(self):
-        self.data = defaultdict(list)
-
-    def insert(self, **kwargs):
-        for key, val in kwargs.iteritems():
-            if type(val) is np.ndarray:
-                val = float(val)
-            self.data[key].append(val)
-
-    def mean(self, arg):
-        return np.array(self.data[arg]).mean()
-
-
-def compute_stats(
-    slots, slot_selection, classes, prediction, y, joint_slot_name
-):
-    conf_mats = {}
-    conf_mats[joint_slot_name] = ConfusionMatrix(2)
-    for slot in slots:
-        if slot in slot_selection:
-            conf_mats[slot] = ConfusionMatrix(len(classes[slot]))
-
-
-    joint_correct = np.array([True for _ in prediction[0]])
-    joint_all = np.array([True for _ in prediction[0]])
-    for i, (slot, pred) in enumerate(zip(slots, prediction)):
-        if slot in slot_selection:
-            slot_y = y[i]
-            slot_y_hat = np.argmax(pred, axis=1)
-
-            conf_mats[slot].batchAdd(slot_y, slot_y_hat)
-
-            joint_correct &= (slot_y == slot_y_hat)
-
-    conf_mats[joint_slot_name].batchAdd(joint_all, joint_correct)
-    return conf_mats
-
-
-def print_mb(slots, classes, vocab_rev, mb, prediction):
-    x, x_switch, x_actor, y_seq_id, y_time, y_labels = mb
-
-    labels = {}
-    pred_id = {}
-    for i, (seq_id, time), lbls in enumerate(
-            zip(zip(y_seq_id, y_time), *y_labels)
-    ):
-        labels[(seq_id, time)] = lbls
-        pred_id[(seq_id, time)] = i
-
-    for dialog_id, dialog in enumerate(zip(*x)):
-        print
-        for t, w in enumerate(dialog):
-            print vocab_rev[w],
-
-            curr_ndx = (dialog_id, t)
-            if curr_ndx in labels:
-                curr_label = labels[curr_ndx]
-                curr_pred = [prediction[i][pred_id[curr_ndx]]
-                             for i, _ in enumerate(slots)]
-
-                print
-                print curr_label
-                print curr_pred
-
-
-def visualize_prediction(xtd, prediction):
-    pred_ptr = 0
-
-    classes_rev = {}
-    for slot in xtd.slots:
-        classes_rev[slot] = {
-            val: key
-            for key, val in xtd.classes[slot].iteritems()
-        }
-
-    for d_id, dialog in enumerate(xtd.sequences[:3]):
-        print ">> Dialog %d" % d_id, "=" * 30
-
-        labeling = {}
-        for label in dialog['labels']:
-            pred_label = {}
-            for i, slot in enumerate(xtd.slots):
-                pred = prediction[i][pred_ptr]
-                pred_label[slot] = np.argmax(pred)
-            pred_ptr += 1
-
-            labeling[label['time']] = (label['slots'], pred_label)
-
-        print " T:",
-        last_score = None
-        for i, word_id, score in zip(itertools.count(),
-                                     dialog['data'],
-                                     dialog['data_score']):
-            if score != last_score:
-                print "%4.2f" % score,
-                last_score = score
-
-            print xtd.vocab_rev[word_id]
-            if i in labeling:
-                print
-                for slot in xtd.slots:
-                    lbl, pred_lbl = labeling[i]
-                    p = P()
-                    p.print_out("    * ")
-                    p.print_out(slot)
-                    p.tab(20)
-                    p.print_out(classes_rev[slot][lbl[slot]])
-                    p.tab(40)
-                    p.print_out(classes_rev[slot][pred_lbl[slot]])
-                    print p.render()
-                print " U:",
-        print
-
-
-def vlog(txt, *args, **kwargs):
-    separator = kwargs.pop('separator', '\n')
-    res = [txt]
-    for k, v in args:
-        res.append('\t%s(%s)' % (k, str(v)))
-    for k, v in sorted(kwargs.iteritems()):
-        res.append('\t%s(%s)' % (k, str(v)))
-    logging.info(separator.join(res))
-
-
 def init_output_dir(out_dir):
     cntr = 1
     orig_out_dir = out_dir
@@ -199,33 +74,6 @@ def init_env(output_dir):
     logging.root = logger
 
     return output_dir
-
-
-def prepare_minibatches(seqs, mb_size, model, slots):
-    minibatches = []
-    seqs_mb = iter_data(seqs, size=mb_size)
-    for mb in seqs_mb:
-        data = model.prepare_data_train(mb, slots)
-        minibatches.append(data)
-
-    return minibatches
-
-
-def compute_prt(cmat, i):
-    r = cmat[i,i] * 100.0
-    total_i = cmat[i, :].sum()
-    if total_i > 0:
-        r /= total_i
-    else:
-        r = 100.0
-    p = cmat[i,i] * 100.0
-    total_ii = cmat[:, i].sum()
-    if total_ii > 0:
-        p /= total_ii
-    else:
-        p = 100.0
-
-    return p, r, total_i
 
 
 def eval_model(
@@ -405,9 +253,7 @@ def get_model(in_args, in_train_data):
 def main(in_args):
     output_dir = \
         init_env(in_args.out + os.path.basename(in_args.experiment_path))
-    mon_extreme_examples = TrainingStats()
     logging.info('XTrack has been started.')
-    logging.info('GIT rev: %s' % get_git_revision_hash())
     logging.info('Output dir: %s' % output_dir)
     logging.info('Initializing random seed to 271.')
     random.seed(271)
@@ -423,14 +269,15 @@ def main(in_args):
 
     t = time.time()
 
-    logging.info('Building model: %s' % in_args.model_type)
     model = get_model(in_args, xtd_t)
+    X, y = model.prepare_data(xtd_t.sequences, xtd_t.slots)
+    X_valid, y_valid = model.prepare_data(xtd_v.sequences, xtd_v.slots)
 
-    model.train(xtd_t.sequences, slots)
+    import pdb; pdb.set_trace()
+    logging.info('Building model: %s' % in_args.model_type)
+    model.train(X, y, X_valid, y_valid)
     logging.info('Training took: %.1f' % (time.time() - t))
 
-
-    print model.evaluate(xtd_v.sequences, slots)
     logging.info('Result model saved as "{}"'.format(model.save_path))
     # tracker_valid = XTrack2DSTCTracker(xtd_v, [model])
 
