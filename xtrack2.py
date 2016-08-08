@@ -405,13 +405,7 @@ def get_model(in_args, in_train_data):
 def main(in_args):
     output_dir = \
         init_env(in_args.out + os.path.basename(in_args.experiment_path))
-    mon_train = TrainingStats()
-    mon_valid = TrainingStats()
     mon_extreme_examples = TrainingStats()
-    stats_obj = dict(
-        train=mon_train.data,
-        mon_extreme_examples=mon_extreme_examples.data
-    )
     logging.info('XTrack has been started.')
     logging.info('GIT rev: %s' % get_git_revision_hash())
     logging.info('Output dir: %s' % output_dir)
@@ -436,143 +430,9 @@ def main(in_args):
     logging.info('Training took: %.1f' % (time.time() - t))
 
 
-    model.evaluate(xtd_v.sequences, slots)
-    tracker_valid = XTrack2DSTCTracker(xtd_v, [model])
-
-    valid_data_y = model.prepare_data_train(xtd_v.sequences, slots)
-    if not eval_on_full_train:
-        selected_train_seqs = []
-        for i in range(100):
-            ndx = random.randint(0, len(xtd_t.sequences) - 1)
-            selected_train_seqs.append(xtd_t.sequences[ndx])
-    else:
-        selected_train_seqs = xtd_t.sequences
-
-    # train_data = model.prepare_data_train(selected_train_seqs, slots)
-    best_tracking_acc = 0.0
-    seqs = list(xtd_t.sequences)
-    seqs = seqs * mb_mult_data
-    random.shuffle(seqs)
-    minibatches = prepare_minibatches(seqs, mb_size, model, slots)
-    minibatches = zip(itertools.count(), minibatches)
-    logging.info('We have %d minibatches.' % len(minibatches))
-
-    example_cntr = 0
-    timestep_cntr = 0
-    stats = TrainingStats()
-    mb_histogram = defaultdict(int)
-    mb_ids = range(len(minibatches))
-    mb_to_go = []
-
-    epoch = 0
-
-    init_valid_loss = model._loss(*valid_data_y)
-    logging.info('Initial valid loss: %.10f' % init_valid_loss)
-
-    if not valid_after:
-        valid_after = len(seqs)
-
-    mb_loss = {}
-    last_valid = 0
-    last_inline_print = time.time()
-    last_inline_print_cnt = 0
-    best_track_metric = defaultdict(float)
-
-    keep_on_training = True
-    while keep_on_training:
-        if len(mb_to_go) == 0:
-            mb_to_go = list(mb_ids)
-            epoch += 1
-
-            if 0 < n_epochs < epoch:
-                keep_on_training = False
-                continue
-
-        mb_ndx = random.choice(mb_to_go)
-        mb_to_go.remove(mb_ndx)
-
-        #mb_id, mb_data = random.choice(minibatches)
-        mb_id, mb_data = minibatches[mb_ndx]
-        mb_histogram[mb_ndx] += 1
-        mb_done = 0
-        t = time.time()
-        (loss, update_ratio) = model._train(lr, *mb_data)
-        mb_loss[mb_ndx] = loss
-        t = time.time() - t
-        stats.insert(loss=loss, update_ratio=update_ratio, time=t)
-
-        x = mb_data[0]
-        example_cntr += x.shape[1]
-        timestep_cntr += x.shape[0]
-        mb_done += 1
-
-        if time.time() - last_inline_print > 1.0:
-            last_inline_print = time.time()
-            inline_print(
-                "     %6d examples, %4d examples/s" % (
-                    example_cntr,
-                    example_cntr - last_inline_print_cnt
-                )
-            )
-            last_inline_print_cnt = example_cntr
-
-        if (example_cntr - last_valid) >= valid_after:
-            inline_print("")
-            last_valid = example_cntr
-            params_file = os.path.join(
-                output_dir, 'params.%.10d.p' % example_cntr
-            )
-            logging.info('Saving parameters: %s' % params_file)
-            model.save_params(params_file)
-
-            valid_loss = model._loss(*valid_data_y)
-            update_ratio = stats.mean('update_ratio')
-
-            _, track_score = tracker_valid.track(track_log)
-
-            for metric, value in track_score.iteritems():
-                logging.info('Valid %15s: %10.2f %%' % (metric, value * 100))
-                best_track_metric[metric] = max(
-                    value,
-                    best_track_metric[metric]
-                )
-            for metric, value in best_track_metric.iteritems():
-                logging.info('Best %15s:  %10.2f %%' % (metric, value * 100))
-            logging.info('Train loss:         %10.2f' % stats.mean('loss'))
-            logging.info('Mean update ratio:  %10.6f' % update_ratio)
-            logging.info('Mean mb time:       %10.4f' % stats.mean('time'))
-            logging.info('Epoch:              %10d (%d mb remain)' % (
-                epoch,
-                len(mb_to_go)
-            ))
-            logging.info('Example:            %10d' % example_cntr)
-
-            mon_train.insert(
-                time=time.time(),
-                example=example_cntr,
-                timestep_cntr=timestep_cntr,
-                mb_id=mb_id,
-                train_loss=stats.mean('loss'),
-                valid_loss=valid_loss,
-                update_ratio=stats.mean('update_ratio'),
-                tracking_acc=track_score
-            )
-
-            stats_path = os.path.join(output_dir, 'stats.json')
-            with open(stats_path, 'w') as f_out:
-                json.dump(stats_obj, f_out)
-                os.system(
-                    'ln -f -s "%s" "xtrack2_vis/stats.json"' %
-                    os.path.join('..', stats_path)
-                )
-
-            stats = TrainingStats()
-
-    params_file = os.path.join(output_dir, 'params.final.p')
-    logging.info('Saving final params to: %s' % params_file)
-    model.save_params(params_file)
-
-    return best_tracking_acc
+    print model.evaluate(xtd_v.sequences, slots)
+    logging.info('Result model saved as "{}"'.format(model.save_path))
+    # tracker_valid = XTrack2DSTCTracker(xtd_v, [model])
 
 
 def build_argument_parser():
