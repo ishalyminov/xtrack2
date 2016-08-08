@@ -1,4 +1,5 @@
 fuzzywuzzy==0.11.1
+h5py==2.6.0
 Keras==1.0.6
 numpy==1.11.1
 pydot==1.1.0

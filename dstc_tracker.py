@@ -1,37 +1,3 @@
-"""{
-    "wall-time": 5.825495004653931,
-    "dataset": "dstc2_dev",
-    "sessions": [
-        {
-            "session-id": "voip-f246dfe0f2-20130328_161556",
-            "turns": [
-                {
-                    "goal-labels": {
-                        "pricerange": {
-                            "expensive": 0.9883454175454712
-                        },
-                        "area": {
-                            "south": 0.9673269337257503
-                        }
-                    },
-                    "goal-labels-joint": [
-                        {
-                            "slots": {
-                                "pricerange": "expensive",
-                                "area": "south"
-                            },
-                            "score": 0.9777797002475338
-                        }
-                    ],
-                    "method-label": {
-                        "byconstraints": 0.9999999999999999
-                    },
-                    "requested-slots": {}
-                }
-        }
-}
-"""
-
 import collections
 import time
 import json
@@ -43,7 +9,7 @@ from data import Data, Tagger
 from dstc5_scripts import ontology_reader
 from utils import pdb_on_error
 from model import Model
-from model_baseline import BaselineModel
+from model_baseline import BaselineModelKeras
 
 from dstc5_scripts.stat_classes import (
     Stat_Accuracy, Stat_Frame_Precision_Recall
@@ -268,25 +234,23 @@ class XTrack2DSTCTracker(object):
         return new_res
 
 
-def main(dataset, data_file, output_file, params_file, model_type, ontology):
+def main(dataset, data_file, output_file, params_file, model_type):
     models = []
     for pf in params_file:
         logging.info('Loading model from: %s' % pf)
         if model_type == 'lstm':
             model_cls = Model
+        elif model_type == 'simple_conv':
+            model_cls = SimpleConvModel
         elif model_type == 'baseline':
-            model_cls = BaselineModel
+            model_cls = BaselineModelKeras
         models.append(model_cls.load(pf, build_train=False))
 
     logging.info('Loading data: %s' % data_file)
     data = Data.load(data_file)
 
     logging.info('Starting tracking.')
-    tracker = XTrack2DSTCTracker(
-        data,
-        models,
-        ontology_reader.OntologyReader(ontology)
-    )
+    tracker = XTrack2DSTCTracker(data, models)
 
     t = time.time()
     result, stats = tracker.track(output_len_accuracy=True)
@@ -314,7 +278,6 @@ if __name__ == '__main__':
     parser.add_argument('--output_file', required=True)
     parser.add_argument('--params_file', action='append', required=True)
     parser.add_argument('--model_type', default='lstm'),
-    parser.add_argument('--ontology', required=True)
 
     pdb_on_error()
     init_logging()

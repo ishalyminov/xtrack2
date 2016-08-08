@@ -154,9 +154,8 @@ def main(in_args):
     X, y = model.prepare_data_train(xtd_t.sequences, xtd_t.slots)
     X_valid, y_valid = model.prepare_data_test(xtd_v.sequences, xtd_v.slots)
 
-    import pdb; pdb.set_trace()
     logging.info('Building model: %s' % in_args.model_type)
-    model.train(X, y, X_valid, y_valid)
+    model.train(X, y)
     logging.info('Training took: %.1f' % (time.time() - t))
 
     logging.info('Result model saved as "{}"'.format(model.save_path))

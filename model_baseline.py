@@ -6,6 +6,7 @@ from keras.models import Model
 from keras.layers import Dense, Activation, Input, Merge
 from keras.layers.recurrent import LSTM
 from keras.callbacks import ModelCheckpoint
+from keras.models import load_model
 
 
 class BaselineModelKeras(object):
@@ -104,12 +105,17 @@ class BaselineModelKeras(object):
     def save(self, in_file_name):
         self.model.save(in_file_name)
 
+    def load(self, in_file_name):
+        self.model = load_model(in_file_name)
+
     def prepare_data_train(self, sequences, slots):
         X, y = self.prepare_data(sequences, slots)
         self.init_model(X)
+        return X, y
 
     def prepare_data_test(self, sequences, slots):
         X, y = self.prepare_data(sequences, slots)
+        return X, y
 
     def prepare_data(self, seqs, slots, with_labels=True):
         x = []
