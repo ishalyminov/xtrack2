@@ -5,6 +5,7 @@ import json
 import numpy as np
 
 import data
+from data import DataBuilder
 import data_model
 
 
@@ -27,7 +28,7 @@ class BaselineSequence(dict):
         return json.dumps(self.__dict__)
 
 
-class DataBuilderBaseline(data.DataBuilder):
+class DataBuilderBaseline(DataBuilder):
     seq_cls = BaselineSequence
     feature_cnts = Counter()
     feature_dict = {}

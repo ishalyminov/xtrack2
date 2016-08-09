@@ -169,7 +169,6 @@ class BaselineModelKeras(object):
         x = []
         y_labels = []
         x_one_hot_length = len(self.vocab)
-        y_one_hot_length = sum(map(len, self.slot_classes.values()))
 
         for sequence in seqs:
             one_hot_sequence = []
@@ -197,6 +196,24 @@ class BaselineModelKeras(object):
             data += [np.array(y_labels)]
 
         return tuple(data)
+
+    def get_frame_label_from_predictions(self, in_predictions):
+        total_values_number = sum(map(len, self.slot_classes.values()))
+        assert total_values_number == in_predictions.shape[1]
+
+        result = []
+        for prediction in in_predictions:
+            frame_label = {}
+            slot_offset = 0
+            for slot in self.slot_classes:
+                slot_values_number = len(self.slot_classes[slot])
+                slot_value_index = np.argmax(
+                    prediction[slot_offset:slot_offset + slot_values_number]
+                )
+                frame_label[slot] = self.slot_classes[slot][slot_value_index]
+                slot_offset += slot_values_number
+            result.append(frame_label)
+        return result
 
     def _pad_sequences(self, in_sequences, in_pad_by, in_max_len):
         result = []

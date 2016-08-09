@@ -1,10 +1,7 @@
 from data import *
 from data_baseline import *
 import import_dstc45
-from xtrack2_config import (
-    experiment_directory,
-    dstc45_config_dir
-)
+from xtrack2_config import experiment_directory, dstc45_config_dir
 
 
 def load_dialogs(data_dir):

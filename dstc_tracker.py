@@ -8,6 +8,7 @@ from data import Data, Tagger
 from utils import pdb_on_error
 from model import Model
 from model_baseline import BaselineModelKeras
+from model_simple_conv import SimpleConvModel
 
 from dstc5_scripts.stat_classes import (
     Stat_Accuracy, Stat_Frame_Precision_Recall
