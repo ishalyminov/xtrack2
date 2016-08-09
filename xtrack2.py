@@ -159,6 +159,7 @@ def main(in_args):
     logging.info('Training took: %.1f' % (time.time() - t))
 
     logging.info('Result model saved as "{}"'.format(model.save_path))
+    model.save(model.save_path)
     # tracker_valid = XTrack2DSTCTracker(xtd_v, [model])
 
 

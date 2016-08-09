@@ -113,7 +113,7 @@ class BaselineModelKeras(object):
 
     def save(self, in_file_name):
         self.model.save(in_file_name)
-        self.save_model_params(in_file_name + '.model_params.json')
+        self._save_model_params(in_file_name + '.model_params.json')
 
     def _save_model_params(self, in_file_name):
         with codecs.getwriter('utf-8')(open(in_file_name, 'w')) as output:
@@ -123,22 +123,32 @@ class BaselineModelKeras(object):
                     'max_sequence_length': self.max_sequence_length,
                     'slots': self.slots,
                     'slot_classes': self.slot_classes,
-                    'sonfig': self.config
+                    'config': self.config,
                     'save_path': self.save_path
                 },
                 output
             )
 
     @classmethod
-    def load(in_file_name):
-        result = BaselineModelKeras(None, None, None, None, None)
-        result._load_model_params(in_file_name + '.model_params.json')
+    def load(self, in_file_name):
+        model_params = BaselineModelKeras._load_model_params(
+            in_file_name + '.model_params.json'
+        )
+        result = BaselineModelKeras(
+            model_params['slots'],
+            model_params['slot_classes'],
+            model_params['vocab'],
+            model_params['config'],
+            model_params['save_path']
+        )
+        result.max_sequence_length = model_params['max_sequence_length']
         result.model = load_model(in_file_name)
         return result
 
+    @classmethod
     def _load_model_params(self, in_file_name):
-        with codecs.reader('utf-8')(open(in_file_name)) as input:
-            params_json = json.load(input)
+        with codecs.getreader('utf-8')(open(in_file_name)) as input:
+            return json.load(input)
             self.vocab = params_json['vocab']
             self.max_sequence_length = params_json['max_sequence_length']
             self.slots = params_json['slots']
@@ -147,13 +157,13 @@ class BaselineModelKeras(object):
             self.save_path = params_json['save_path']
 
     def prepare_data_train(self, sequences, slots):
-        X, y = self.prepare_data(sequences, slots)
+        X, y = self.prepare_data(sequences, slots, with_labels=True)
         self.init_model(X)
         return X, y
 
-    def prepare_data_test(self, sequences, slots):
-        X, y = self.prepare_data(sequences, slots)
-        return X, y
+    def prepare_data_test(self, sequences, slots, with_labels=True):
+        data = self.prepare_data(sequences, slots, with_labels)
+        return data
 
     def prepare_data(self, seqs, slots, with_labels=True):
         x = []

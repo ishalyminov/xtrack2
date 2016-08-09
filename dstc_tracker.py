@@ -122,7 +122,7 @@ class XTrack2DSTCTracker(object):
     def track(self, tracking_log_file_name=None):
         accuracy_stat = Stat_Accuracy()
         frame_precision_recall_stat = Stat_Frame_Precision_Recall()
-        X = self.main_model.prepare_data_predict(
+        X = self.main_model.prepare_data_test(
             self.data.sequences,
             self.data.slots,
             with_labels=False
@@ -244,6 +244,7 @@ def main(dataset, data_file, output_file, params_file, model_type):
             model_cls = SimpleConvModel
         elif model_type == 'baseline':
             model_cls = BaselineModelKeras
+        import pdb; pdb.set_trace()
         models.append(model_cls.load(pf))
 
     logging.info('Loading data: %s' % data_file)
@@ -253,7 +254,7 @@ def main(dataset, data_file, output_file, params_file, model_type):
     tracker = XTrack2DSTCTracker(data, models)
 
     t = time.time()
-    result, stats = tracker.track(output_len_accuracy=True)
+    result, stats = tracker.track()
     t = time.time() - t
     logging.info('Tracking took: %.1fs' % t)
     logging.info('Tracking stats: ')
@@ -277,7 +278,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_file', required=True)
     parser.add_argument('--output_file', required=True)
     parser.add_argument('--params_file', action='append', required=True)
-    parser.add_argument('--model_type', default='lstm'),
+    parser.add_argument('--model_type', default='baseline'),
 
     pdb_on_error()
     init_logging()
