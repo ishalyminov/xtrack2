@@ -97,8 +97,6 @@ class XTrack2DSTCTracker(object):
             slot: pred[slot]
             for slot in self.data.slots
             if pred[slot] != self.data.null_class \
-            # and slot in self.ontology.tagsets.get(segment_id, {}).keys() \
-            # and pred[slot] in self.ontology.tagsets.get(segment_id, {}).get(slot, [])
         }
 
         tracker_output = {
@@ -112,13 +110,6 @@ class XTrack2DSTCTracker(object):
             res &= val == 0
         return res
 
-    def _make_model_predictions(self, X):
-        preds = []
-        for model in self.models:
-            pred = model.predict(X)
-            preds.append(pred)
-        return preds
-
     def track(self, tracking_log_file_name=None):
         accuracy_stat = Stat_Accuracy()
         frame_precision_recall_stat = Stat_Frame_Precision_Recall()
@@ -126,11 +117,10 @@ class XTrack2DSTCTracker(object):
             self.data.sequences,
             self.data.slots,
             with_labels=False
-        )
+        )[0]
 
-        preds = self._make_model_predictions(X)
-
-        pred = []
+        import pdb;pdb.set_trace()
+        prediction = self.main_model.predict(X)
         for slot_preds in zip(*preds):
             slot_res = np.array(slot_preds[0])
             for slot_pred in slot_preds[1:]:
@@ -244,7 +234,6 @@ def main(dataset, data_file, output_file, params_file, model_type):
             model_cls = SimpleConvModel
         elif model_type == 'baseline':
             model_cls = BaselineModelKeras
-        import pdb; pdb.set_trace()
         models.append(model_cls.load(pf))
 
     logging.info('Loading data: %s' % data_file)
