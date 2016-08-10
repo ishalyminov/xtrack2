@@ -3,6 +3,7 @@ import json
 import logging
 import numpy as np
 import argparse
+from itertools import count
 
 from data import Data, Tagger
 from utils import pdb_on_error
@@ -120,65 +121,52 @@ class XTrack2DSTCTracker(object):
             with_labels=False
         )[0]
 
-        import pdb;pdb.set_trace()
         prediction = self.main_model.predict(X)
-        for slot_preds in zip(*preds):
-            slot_res = np.array(slot_preds[0])
-            for slot_pred in slot_preds[1:]:
-                slot_res += slot_pred
-            pred.append(slot_res / len(slot_preds))
-
-        pred_ptr = 0
-
+        frame_labels = \
+            self.main_model.get_frame_label_from_prediction(prediction)
         result = []
         if tracking_log_file_name:
             self.track_log = open(tracking_log_file_name, 'w')
         else:
             self.track_log = open('/dev/null', 'w')
 
-        for dialog in self.data.sequences:
-            self.track_log.write(">> Dialog: %s\n" % dialog['id'])
-            self.track_log.write("\n")
+        for dialog, frame_label in zip(self.data.sequences, frame_labels):
+            print >>self.track_log, '>> Dialog: {}\n'.format(dialog['id'])
             turns = []
-            last_pos = 0
-            state_component_mentioned = False
-            for utter_index, lbl in enumerate(dialog['labels']):
+            for utter_index, lbl, in zip(
+                count(),
+                dialog['labels']
+            ):
                 last_pos = lbl['time'] + 1
                 segment_id, segment_bio = lbl['segment_id'], lbl['segment_bio']
 
-                out, goals_correct = self.build_output(
-                    [
-                        pred[i][pred_ptr]
-                        for i, _ in enumerate(self.data.slots)
-                    ],
-                    lbl['slots'],
-                    segment_id,
-                    accuracy_stat,
-                    frame_precision_recall_stat
-                )
+                out = {'frame_label': dict(frame_label)}
                 if dialog['tags']:
-                    dialog['tags'] = self._replace_tags(out, dialog['tags'])
-                #self.track_log.write(json.dumps(out))
-                #self.track_log.write("\n")
+                    dialog['tags'] = \
+                        self._replace_tags(out, dialog['tags'])
                 if segment_bio == 'O':
                     del out['frame_label']
                 else:
                     out['frame_label'] = \
                         self._denormalize_frame_label(out['frame_label'])
+                lbl_string = self._denormalize_frame_label(
+                    self._slot_features_to_strings(lbl['slots'])
+                )
+                accuracy_stat.add(
+                    out['frame_label'],
+                    lbl_string
+                )
+                frame_precision_recall_stat.add(
+                    out['frame_label'],
+                    lbl_string
+                )
                 out['utter_index'] = utter_index
                 turns.append(out)
-                pred_ptr += 1
-
-                if not self._label_empty(lbl['slots']) or state_component_mentioned:
-                    state_component_mentioned = True
 
             result.append({
                 'session_id': dialog['id'],
                 'utterances': turns
             })
-
-        if len(pred[0]) != pred_ptr:
-            raise Exception('Data mismatch.')
 
         stats = {
             'accuracy': accuracy_stat.results()[0][2],
@@ -188,6 +176,12 @@ class XTrack2DSTCTracker(object):
         }
         res = [result, stats]
         return tuple(res)
+
+    def _slot_features_to_strings(self, in_frame_label):
+        return {
+            slot: self.main_model.slot_classes_reversed[slot][feature]
+            for slot, feature in in_frame_label.items()
+        }
 
     def _denormalize_frame_label(self, in_frame_label):
         new_frame_label = {}
@@ -249,6 +243,8 @@ def main(dataset, data_file, output_file, params_file, model_type):
     logging.info('Tracking took: %.1fs' % t)
     logging.info('Tracking stats: ')
     for metric, value in stats.items():
+        if not value:
+            value = 0.0
         logging.info('%s: %.5f %%' % (metric, value * 100))
 
     tracker_output = {

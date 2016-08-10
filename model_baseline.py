@@ -1,7 +1,7 @@
 import codecs
 import json
 import logging
-
+import operator
 import numpy as np
 
 from keras.models import Model
@@ -23,6 +23,13 @@ class BaselineModelKeras(object):
         self.max_sequence_length = None
         self.slots = slots
         self.slot_classes = slot_classes
+        self.slot_classes_reversed = {
+            slot_class: map(
+                lambda x: x[0],
+                sorted(self.slot_classes[slot_class].items(), key=operator.itemgetter(1))
+            )
+            for slot_class in self.slot_classes
+        }
         self.config = config
         self.save_path = in_save_path
 
@@ -197,7 +204,11 @@ class BaselineModelKeras(object):
 
         return tuple(data)
 
-    def get_frame_label_from_predictions(self, in_predictions):
+    def get_frame_label_from_prediction(
+        self,
+        in_predictions,
+        string_values=True
+    ):
         total_values_number = sum(map(len, self.slot_classes.values()))
         assert total_values_number == in_predictions.shape[1]
 
@@ -205,12 +216,15 @@ class BaselineModelKeras(object):
         for prediction in in_predictions:
             frame_label = {}
             slot_offset = 0
-            for slot in self.slot_classes:
+            for slot in self.slot_classes_reversed:
                 slot_values_number = len(self.slot_classes[slot])
                 slot_value_index = np.argmax(
                     prediction[slot_offset:slot_offset + slot_values_number]
                 )
-                frame_label[slot] = self.slot_classes[slot][slot_value_index]
+                frame_label[slot] = \
+                    self.slot_classes_reversed[slot][slot_value_index] \
+                    if string_values \
+                    else slot_value_index
                 slot_offset += slot_values_number
             result.append(frame_label)
         return result
