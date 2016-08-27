@@ -5,15 +5,14 @@ import logging
 import os
 import random
 import re
-import numpy as np
 
 import data_model
 
-word_re = re.compile(r'([\w_]+)', flags=re.UNICODE)
+WORD_RE = re.compile(r'([\w_]+)', flags=re.UNICODE)
 
 
 def tokenize(text):
-    for match in word_re.finditer(text):
+    for match in WORD_RE.finditer(text):
         yield match.group(1)
 
 

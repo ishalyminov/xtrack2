@@ -1,7 +1,21 @@
+import codecs
+import json
+import logging
+
 import numpy as np
+from keras.callbacks import ModelCheckpoint
 
 
 class ModelBase(object):
+    def __init__(self):
+        self.max_sequence_length = None
+
+    def _log_classes_info(self):
+        for slot, vals in self.slot_classes.iteritems():
+            logging.info('  %s:' % slot)
+            for val, val_ndx in sorted(vals.iteritems(), key=lambda x: x[1]):
+                logging.info('    - %s (%d)' % (val, val_ndx))
+
     def get_frame_label_from_prediction(
         self,
         in_predictions,
@@ -90,5 +104,55 @@ class ModelBase(object):
         data = [x]
         if with_labels:
             data += [np.array(y_labels)]
-
         return tuple(data)
+
+    def train(self, X, y):
+        self.init_model(X)
+        checkpointer = ModelCheckpoint(
+            filepath=self.save_path,
+            verbose=True,
+            save_best_only=True
+        )
+        self.model.fit(
+            X,
+            y,
+            batch_size=self.config['mb_size'],
+            nb_epoch=self.config['n_epochs'],
+            verbose=True,
+            shuffle=True,
+            callbacks=[checkpointer],
+            validation_split=0.2
+        )
+
+    def evaluate(self, X, y):
+        return self.model.evaluate(
+            X,
+            y,
+            batch_size=self.config['mb_size'],
+            verbose=True
+        )
+
+    def predict(self, X):
+        return self.model.predict(
+            X,
+            batch_size=self.config['mb_size'],
+            verbose=True
+        )
+
+    def save(self, in_file_name):
+        self.model.save(in_file_name)
+        self._save_model_params(in_file_name + '.model_params.json')
+
+    def _save_model_params(self, in_file_name):
+        with codecs.getwriter('utf-8')(open(in_file_name, 'w')) as output:
+            json.dump(
+                {
+                    'vocab': self.vocab,
+                    'max_sequence_length': self.max_sequence_length,
+                    'slots': self.slots,
+                    'slot_classes': self.slot_classes,
+                    'config': self.config,
+                    'save_path': self.save_path
+                },
+                output
+            )

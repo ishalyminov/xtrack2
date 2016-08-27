@@ -85,7 +85,7 @@ class DataBuilderBaseline(DataBuilder):
             tokens = [self._tag_token(token, seq) for token in tokens]
 
             tokens2 = zip(tokens, tokens[1:])
-            tokens3 = [] #zip(tokens, tokens[1:], tokens[2:])
+            tokens3 = []  # zip(tokens, tokens[1:], tokens[2:])
 
             features.update(
                 self._tokens_to_features(

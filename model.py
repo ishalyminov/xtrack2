@@ -1,24 +1,14 @@
 import logging
 import time
 
-import theano
 import theano.tensor as tt
 
-from passage import updates
-from passage.iterators import padded
-from passage.layers import *
+from model_base import ModelBase
 
-from keras.models import Sequential
-from keras.layers import Dense, Activation
+from keras.layers import Dense
 
 
-class Model(Sequential):
-    def _log_classes_info(self):
-        for slot, vals in self.slot_classes.iteritems():
-            logging.info('  %s:' % slot)
-            for val, val_ndx in sorted(vals.iteritems(), key=lambda x: x[1]):
-                logging.info('    - %s (%d)' % (val, val_ndx))
-
+class Model(ModelBase):
     def __init__(
         self, slots, slot_classes, emb_size, no_train_emb,
         x_include_score, x_include_token_ftrs, x_include_mlp,

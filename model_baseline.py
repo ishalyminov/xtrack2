@@ -4,24 +4,17 @@ import logging
 import operator
 
 from keras.models import Model
-from keras.layers import Dense, Activation, Input, Merge
+from keras.layers import Dense, Input, Merge
 from keras.layers.recurrent import LSTM
-from keras.callbacks import ModelCheckpoint
 from keras.models import load_model
 
 from model_base import ModelBase
 
 
 class BaselineModelKeras(ModelBase):
-    def _log_classes_info(self):
-        for slot, vals in self.slot_classes.iteritems():
-            logging.info('  %s:' % slot)
-            for val, val_ndx in sorted(vals.iteritems(), key=lambda x: x[1]):
-                logging.info('    - %s (%d)' % (val, val_ndx))
-
     def __init__(self, slots, slot_classes, vocab, config, in_save_path):
+        ModelBase.__init__(self)
         self.vocab = vocab
-        self.max_sequence_length = None
         self.slots = slots
         self.slot_classes = slot_classes
         self.slot_classes_reversed = {
@@ -54,20 +47,12 @@ class BaselineModelKeras(ModelBase):
             logging.info(
                 'Building output classifier for the slot "{}"'.format(slot)
             )
-            # for layer_id in range(self.oclf_n_layers):
-            #     result.add(
-            #         # TODO: add Gaussian random initialization to each layer
-            #         Dense(
-            #             input_dim=input_dim,
-            #             output_dim=oclf_n_hidden,
-            #             activation=oclf_activation
-            #         )
-            #    )
             n_classes = len(self.slot_classes[slot])
             slot_mlps.append(
                 Dense(
                     output_dim=n_classes,
-                    activation=self.config['oclf_activation']
+                    activation=self.config['oclf_activation'],
+                    init='normal'
                 )(main_lstm)
             )
         merge_layer = Merge(
@@ -85,57 +70,6 @@ class BaselineModelKeras(ModelBase):
 
     def init_loaded(self):
         pass
-
-    def train(self, X, y):
-        self.init_model(X)
-        checkpointer = ModelCheckpoint(
-            filepath=self.save_path,
-            verbose=True,
-            save_best_only=True
-        )
-        self.model.fit(
-            X,
-            y,
-            batch_size=self.config['mb_size'],
-            nb_epoch=self.config['n_epochs'],
-            verbose=True,
-            shuffle=True,
-            callbacks=[checkpointer],
-            validation_split=0.2
-        )
-
-    def evaluate(self, X, y):
-        return self.model.evaluate(
-            X,
-            y,
-            batch_size=self.config['mb_size'],
-            verbose=True
-        )
-
-    def predict(self, X):
-        return self.model.predict(
-            X,
-            batch_size=self.config['mb_size'],
-            verbose=True
-        )
-
-    def save(self, in_file_name):
-        self.model.save(in_file_name)
-        self._save_model_params(in_file_name + '.model_params.json')
-
-    def _save_model_params(self, in_file_name):
-        with codecs.getwriter('utf-8')(open(in_file_name, 'w')) as output:
-            json.dump(
-                {
-                    'vocab': self.vocab,
-                    'max_sequence_length': self.max_sequence_length,
-                    'slots': self.slots,
-                    'slot_classes': self.slot_classes,
-                    'config': self.config,
-                    'save_path': self.save_path
-                },
-                output
-            )
 
     @classmethod
     def load(self, in_file_name):
