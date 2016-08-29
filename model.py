@@ -1,137 +1,80 @@
 import logging
-import time
 
+import operator
 import theano.tensor as tt
+from keras.engine import Input
+from keras.engine import Merge
 
 from model_base import ModelBase
 
-from keras.layers import Dense
+from keras.layers import Dense, Embedding, Dropout
 
 
-class Model(ModelBase):
-    def __init__(
-        self, slots, slot_classes, emb_size, no_train_emb,
-        x_include_score, x_include_token_ftrs, x_include_mlp,
-        n_input_tokens, n_input_score_bins, n_cells,
-        rnn_n_layers,
-        lstm_peepholes, lstm_bidi, opt_type,
-        oclf_n_hidden, oclf_n_layers, oclf_activation,
-        debug, p_drop,
-        init_emb_from, vocab,
-        input_n_layers, input_n_hidden, input_activation,
-        token_features, token_supervision,
-        momentum, enable_branch_exp, l1, l2, build_train=True
-    ):
-        args = Model.__init__.func_code.co_varnames[
-            :Model.__init__.func_code.co_argcount
-        ]
-        self.init_args = {}
-        for arg in args:
-            if arg != 'self':
-                self.init_args[arg] = locals()[arg]
-
+class ModelKeras(ModelBase):
+    def __init__(self, slots, slot_classes, vocab, config, in_save_path):
+        ModelBase.__init__(self)
         self.vocab = vocab
-
         self.slots = slots
         self.slot_classes = slot_classes
-
+        self.slot_classes_reversed = {
+            slot_class: map(
+                lambda x: x[0],
+                sorted(self.slot_classes[slot_class].items(), key=operator.itemgetter(1))
+            )
+            for slot_class in self.slot_classes
+        }
+        self.config = config
+        self.save_path = in_save_path
 
         logging.info('We have the following classes:')
         self._log_classes_info()
 
-        self.x_include_score = x_include_score
-        self.token_supervision = token_supervision
+    def init_model(self, in_X):
+        self.max_sequence_length = in_X.shape[1]
 
-        x = T.imatrix()
-        input_args = [x]
-        input_token_layer = Embedding(
-            name="emb",
-            size=emb_size,
-            n_features=n_input_tokens,
-            input=x,
-            static=no_train_emb
-        )
-        if init_emb_from:
-            input_token_layer.init_from(init_emb_from, vocab)
+        input_layer = Input(name='input', shape=in_X[0].shape)
+        emb = Embedding(
+            len(self.vocab),
+            self.config['emb_size'],
+            name='embedding'
+        )(input_layer)
+        if self.config.get('init_emb_from', None):
+            # input_token_layer.init_from(init_emb_from, vocab)
             logging.info(
-                'Initializing token embeddings from: %s' % init_emb_from
+                'Initializing token embeddings from: {}'.format(
+                    self.config['init_emb_from']
+                )
             )
         else:
             logging.info('Initializing token embedding randomly.')
-        self.input_emb = input_token_layer.wv
-        prev_layer = input_token_layer
-        input_layers = [input_token_layer]
 
-        if x_include_score:
-            x_score = tt.imatrix()
-            input_score_layer = Embedding(
-                name="emb_score",
-                size=emb_size,
-                n_features=n_input_score_bins,
-                input=x_score
-            )
-            input_layers.append(input_score_layer)
-            input_args.append(x_score)
-
-        if x_include_token_ftrs:
-            token_n_features = len(token_features.values()[0])
-            input_token_features_layer = Embedding(
-                name="emb_ftr",
-                size=token_n_features,
-                n_features=n_input_tokens,
-                input=x,
-                static=True
-            )
-            input_token_features_layer.init_from_dict(token_features)
-            ftrs_to_emb = Dense(
-                name='ftr2emb',
-                size=emb_size,
-                activation='linear'
-            )
-            ftrs_to_emb.connect(input_token_features_layer)
-            input_layers.append(ftrs_to_emb)
-
-        sum_layer = SumLayer(layers=input_layers)
-        prev_layer = sum_layer
-
-        if input_n_layers > 0:
-            input_transform = MLP(
-                [input_n_hidden  ] * input_n_layers,
-                [input_activation] * input_n_layers,
-                p_drop=p_drop
-            )
-            input_transform.connect(prev_layer)
-            prev_layer = input_transform
-
-        if token_supervision:
-            slot_value_pred = MLP(
-                [len(slots) * 2],
-                ['sigmoid'     ],
-                p_drop=[p_drop],
-                name='ts'
-            )
-            slot_value_pred.connect(prev_layer)
-
-            y_tokens_label = tt.itensor3()
-            token_supervision_loss_layer = TokenSupervisionLossLayer()
-            token_supervision_loss_layer.connect(
-                slot_value_pred,
-                y_tokens_label
+        input_layers = [emb]
+        sum_layer = Merge(input_layers, mode='sum')(emb)
+        last_layer = sum_layer
+        if self.config.get('input_n_layers', None):
+            last_layer = self._build_mlp(
+                [self.config['input_n_hidden']] * self.config['input_n_layers'],
+                last_layer,
+                'input'
             )
 
-            if debug:
-                self._token_supervision_loss = theano.function(
-                    input_args + [y_tokens_label],
-                    token_supervision_loss_layer.output()
-                )
-        else:
-            token_supervision_loss_layer = None
-            y_tokens_label = None
+        if self.config.get('token_supervision', None):
+            last_layer = self._build_mlp(
+                [len(self.slots) * 2],
+                ['sigmoid'],
+                'ts',
+                last_layer
+            )
 
-        logging.info('There are %d input layers.' % input_n_layers)
+            # TODO: HOW'S THAT?
+            # y_tokens_label = tt.itensor3()
+            # token_supervision_loss_layer = TokenSupervisionLossLayer()
+            # token_supervision_loss_layer.connect(
+            #     slot_value_pred,
+            #     y_tokens_label
+            # )
 
-        if debug:
-            self._lstm_input = theano.function(input_args, prev_layer.output())
+        logging.info('There are %d input layers.' % self.config['input_n_layers'])
 
         h_t_layer = IdentityInput(None, n_cells)
         mlps = []
@@ -192,21 +135,7 @@ class Model(ModelBase):
                     layers=[f_lstm_layer, b_lstm_layer]
                 )
                 prev_layer = lstm_zip
-                if debug:
-                    self._lstm_output = theano.function(
-                        input_args,
-                        [
-                            prev_layer.output(),
-                            f_lstm_layer.output(),
-                            b_lstm_layer.output()
-                        ]
-                    )
             else:
-                if debug:
-                    self._lstm_output = theano.function(
-                        input_args,
-                        [prev_layer.output(), f_lstm_layer.output()]
-                    )
                 prev_layer = f_lstm_layer
 
         assert prev_layer is not None
@@ -270,24 +199,6 @@ class Model(ModelBase):
         lr = tt.scalar('lr')
         clipnorm = 0.5
         reg = updates.Regularizer(l1=l1, l2=l2)
-        if opt_type == "rprop":
-            updater = updates.RProp(lr=lr, clipnorm=clipnorm)
-            model_updates = updater.get_updates(params, cost_value)
-        elif opt_type == "sgd":
-            updater = updates.SGD(lr=lr, clipnorm=clipnorm, regularizer=reg)
-        elif opt_type == "rmsprop":
-            updater = updates.RMSprop(lr=lr, clipnorm=clipnorm, regularizer=reg)
-        elif opt_type == "adam":
-            updater = updates.Adam(lr=lr, clipnorm=clipnorm, regularizer=reg)
-        elif opt_type == "momentum":
-            updater = updates.Momentum(
-                lr=lr,
-                momentum=momentum,
-                clipnorm=clipnorm,
-                regularizer=reg
-            )
-        else:
-            raise Exception("Unknown opt.")
 
         loss_args = list(input_args)
         loss_args += [y_seq_id, y_time]
@@ -296,101 +207,22 @@ class Model(ModelBase):
         if token_supervision:
             loss_args += [y_tokens_label]
 
-        if build_train:
-            model_updates = updater.get_updates(params, cost_value)
-
-            train_args = [lr] + loss_args
-            update_ratio = updater.get_update_ratio(params, model_updates)
-
-            logging.info('Preparing %s train function.' % opt_type)
-            t = time.time()
-            self._train = theano.function(
-                train_args,
-                [cost_value, update_ratio],
-                updates=model_updates
-            )
-            logging.info('Preparation done. Took: %.1f' % (time.time() - t))
-
-        self._loss = theano.function(loss_args, cost_value)
-
-        logging.info('Preparing predict function.')
-        t = time.time()
-        predict_args = list(input_args)
-        predict_args += [y_seq_id, y_time]
-        self._predict = theano.function(
-            predict_args,
-            predictions
-        )
-        logging.info('Done. Took: %.1f' % (time.time() - t))
-        theano.printing.pydotprint(
-            self._predict,
-            outfile="xtrack2_model.png",
-            var_with_name_simple=True
-        )
-
     def init_loaded(self):
         pass
 
     def init_word_embeddings(self, w):
         self.input_emb.set_value(w)
 
-    def prepare_data_train(self, seqs, slots):
-        return self._prepare_data(seqs, slots, with_labels=True)
-
-    def prepare_data_predict(self, seqs, slots):
-        return self._prepare_data(seqs, slots, with_labels=False)
-
-    def _prepare_y_token_labels_padding(self):
-        token_padding = []
-        for slot in self.slots:
-            token_padding.append(0)
-            token_padding.append(0)
-
-        return [token_padding]
-
-    def _prepare_data(self, seqs, slots, with_labels=True):
-        x = []
-        x_score = []
-        x_actor = []
-        y_seq_id = []
-        y_time = []
-        y_labels = [[] for slot in slots]
-        y_weights = []
-        for item in seqs:
-            x.append(item['data'])
-            x_score.append(item['data_score'])
-            x_actor.append(item['data_actor'])
-
-            labels = item['labels']
-
-            for label in labels:
-                y_seq_id.append(len(x) - 1)
-                y_time.append(label['time'])
-
-                for i, slot in enumerate(slots):
-                    lbl_val = label['slots'][slot]
-                    if lbl_val < 0:
-                        lbl_val = len(self.slot_classes[slot]) + lbl_val
-                    y_labels[i].append(lbl_val)
-                y_weights.append(label['score'])
-
-        x = padded(x, is_int=True).transpose(1, 0)
-
-        x_score = padded(x_score).transpose(1, 0)
-        x_actor = padded(x_actor, is_int=True).transpose(1, 0)
-
-        x_score = np.array(x_score, dtype=np.int32)[:,:]
-
-        y_weights = np.array(y_weights, dtype=np.float32)
-
-        y_token_labels_padding = self._prepare_y_token_labels_padding()
-
-        data = [x]
-        if self.x_include_score:
-            data.append(x_score)
-        data.extend([y_seq_id, y_time])
-        if with_labels:
-            data.append(y_weights)
-            data.extend(y_labels)
-
-        return tuple(data)
+    def _build_mlp(self, in_layer_sizes, in_activation, in_input, in_name):
+        last_layer = in_input
+        for layer_index, layer_size in enumerate(in_layer_sizes):
+            input_transform_i = Dense(
+                layer_size,
+                name='{}_{}'.format(in_name, layer_index),
+                activation=in_activation,
+                init='normal'
+            )(last_layer)
+            last_layer = input_transform_i
+            dropout = Dropout(self.config['p_drop'])(last_layer)
+            last_layer = dropout
+        return last_layer
