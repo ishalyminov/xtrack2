@@ -6,6 +6,8 @@ import os
 import random
 import re
 
+import sys
+
 import data_model
 
 WORD_RE = re.compile(r'([\w_]+)', flags=re.UNICODE)
@@ -80,7 +82,7 @@ class DataBuilder(object):
     def __init__(
         self, slots, slot_groups, based_on, include_base_seqs,
         oov_ins_p, word_drop_p, include_system_utterances, nth_best,
-        debug_dir, tagged, ontology, no_label_weight
+        debug_dir, tagged, ontology, no_label_weight, limit_vocabulary_size=sys.maxint
     ):
         self.slots = slots
         self.slot_groups = slot_groups
@@ -98,6 +100,7 @@ class DataBuilder(object):
         else:
             self.tagger = None
         self.no_label_weight = no_label_weight
+        self.vocabulary_size = limit_vocabulary_size
 
         self.xd = None
         self.word_freq = collections.Counter()
@@ -129,7 +132,7 @@ class DataBuilder(object):
         return self.xd
 
     def _create_new_data_instance(self):
-        self.xd = Data()
+        self.xd = Data(self.vocabulary_size)
         self.xd.initialize(
             self.slots, self.slot_groups, self.based_on,
             self.include_base_seqs,
@@ -319,13 +322,17 @@ class Data(object):
         'slots',
         'slot_groups',
         'stats',
-        'tagged'
+        'tagged',
+        'max_vocabulary_size'
     ]
 
     null_class = '_null_'
     slots = None
     vocab = None
     slot_groups = None
+
+    def __init__(self, in_vocabulary_size=sys.maxint):
+        self.max_vocabulary_size = in_vocabulary_size
 
     def _build_initial_classes(self, ontology):
         classes = {}
@@ -385,14 +392,11 @@ class Data(object):
     def get_token_ndx(self, token):
         if token in self.vocab:
             return self.vocab[token]
-        else:
-            if not self.vocab_fixed:
-                self.vocab[token] = res = len(self.vocab)
-                self.vocab_rev[self.vocab[token]] = token
-                return res
-            else:
-                logging.warning('Mapping to OOV: %s' % token)
-                return self.vocab['#OOV']
+        if self.vocab_fixed or not len(self.vocab) < self.max_vocabulary_size:
+            return self.vocab['#OOV']
+        self.vocab[token] = res = len(self.vocab)
+        self.vocab_rev[self.vocab[token]] = token
+        return res
 
     def tag_token(self, token):
         for cls, vals in self.classes.iteritems():

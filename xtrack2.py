@@ -10,7 +10,7 @@ import argparse
 
 from data import Data
 from utils import pdb_on_error
-from model import Model
+from model import ModelKeras
 from model_simple_conv import SimpleConvModelKeras
 from model_baseline import BaselineModelKeras
 
@@ -71,7 +71,16 @@ def get_model(in_args, in_train_data):
     slots = in_train_data.slots
 
     if in_args.model_type == 'lstm':
-        return Model(slots, in_train_data.classes, model_config)
+        return ModelKeras(
+            slots,
+            in_train_data.classes,
+            in_train_data.vocab,
+            model_config,
+            os.path.join(
+                in_args.out + os.path.basename(in_args.experiment_path),
+                'lstm.h5'
+            )
+        )
     if in_args.model_type == 'conv':
         return SimpleConvModelKeras(
             slots,

@@ -12,7 +12,8 @@ def main(
     skip_dstc_import_step,
     builder_type,
     challenge_id,
-    dataset_names
+    dataset_names,
+    vocabulary_size_limit
 ):
     ontology = ontology_reader.OntologyReader(dstc45_ontology_filename)
     datasets = [dataset.strip() for dataset in dataset_names.split(',')]
@@ -28,7 +29,11 @@ def main(
             slots=slots,
             slot_groups={slot: [slot] for slot in slots},
             ontology=build_ontology_for_topic(ontology, topic),
-            builder_opts=dict(tagged=True, no_label_weight=True),
+            builder_opts={
+                'tagged': True,
+                'no_label_weight': True,
+                'limit_vocabulary_size': vocabulary_size_limit
+            },
             skip_dstc_import_step=skip_dstc_import_step,
             builder_type=builder_type,
             in_datasets=datasets_for_topic
@@ -50,6 +55,7 @@ if __name__ == '__main__':
         default='train,dev',
         help='"name1,name2..."'
     )
+    parser.add_argument('--vocabulary_size_limit', default=0, type=int)
 
     args = parser.parse_args()
     main(**vars(args))

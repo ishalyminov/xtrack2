@@ -1,13 +1,13 @@
 import logging
 
 import operator
-import theano.tensor as tt
 from keras.engine import Input
 from keras.engine import Merge
+from keras.engine import Model
 
 from model_base import ModelBase
 
-from keras.layers import Dense, Embedding, Dropout
+from keras.layers import Dense, Embedding, Dropout, LSTM
 
 
 class ModelKeras(ModelBase):
@@ -19,7 +19,10 @@ class ModelKeras(ModelBase):
         self.slot_classes_reversed = {
             slot_class: map(
                 lambda x: x[0],
-                sorted(self.slot_classes[slot_class].items(), key=operator.itemgetter(1))
+                sorted(
+                    self.slot_classes[slot_class].items(),
+                    key=operator.itemgetter(1)
+                )
             )
             for slot_class in self.slot_classes
         }
@@ -48,9 +51,11 @@ class ModelKeras(ModelBase):
         else:
             logging.info('Initializing token embedding randomly.')
 
-        input_layers = [emb]
-        sum_layer = Merge(input_layers, mode='sum')(emb)
-        last_layer = sum_layer
+        # not used for now
+        # input_layers = [emb]
+        # sum_layer = Merge(input_layers, mode='sum')(emb)
+
+        last_layer = emb
         if self.config.get('input_n_layers', None):
             last_layer = self._build_mlp(
                 [self.config['input_n_hidden']] * self.config['input_n_layers'],
@@ -74,138 +79,82 @@ class ModelKeras(ModelBase):
             #     y_tokens_label
             # )
 
-        logging.info('There are %d input layers.' % self.config['input_n_layers'])
+        logging.info(
+            'There are {} input layers'.format(self.config['input_n_layers'])
+        )
 
-        h_t_layer = IdentityInput(None, n_cells)
+        # h_t_layer = IdentityInput(None, n_cells)
         mlps = []
         mlp_params = []
-        for slot in slots:
-            n_classes = len(slot_classes[slot])
-            slot_mlp = MLP(
-                [oclf_n_hidden  ] * oclf_n_layers + [n_classes],
-                [oclf_activation] * oclf_n_layers + ['softmax'],
-                [0.0            ] * oclf_n_layers + [0.0      ],
-                name="mlp_%s" % slot
+        for slot in self.config['slot_classes']:
+            n_classes = len(self.config['slot_classes'][slot])
+            n_layers = self.config['oclf_n_layers']
+            slot_mlp = self._build_mlp(
+                [self.config['oclf_n_hidden']] * n_layers + [n_classes],
+                [self.config['oclf_activation']] * n_layers + ['softmax'],
+                'mlp',
+                last_layer
             )
-            slot_mlp.connect(h_t_layer)
+            # slot_mlp.connect(h_t_layer)
             mlps.append(slot_mlp)
             mlp_params.extend(slot_mlp.get_params())
 
-
-        for i in range(rnn_n_layers):
-            # Forward LSTM layer.
-            logging.info('Creating LSTM layer with %d neurons.' % (n_cells))
-            if x_include_mlp:
-                f_lstm_layer = LstmWithMLP(
-                    name="flstm_%d" % i,
-                    size=n_cells,
-                    seq_output=True,
-                    out_cells=False,
-                    peepholes=lstm_peepholes,
-                    p_drop=p_drop,
-                    enable_branch_exp=enable_branch_exp,
-                    mlps=mlps
+        for i in range(self.config['rnn_n_layers']):
+            # Forward LSTM layer
+            logging.info(
+                'Creating LSTM layer with {} neurons'.format(
+                    self.config['n_cells']
                 )
-            else:
-                f_lstm_layer = LstmRecurrent(
-                    name="flstm_%d" % i,
-                    size=n_cells,
-                    seq_output=True,
-                    out_cells=False,
-                    peepholes=lstm_peepholes,
-                    p_drop=p_drop,
-                    enable_branch_exp=enable_branch_exp
-                )
-            f_lstm_layer.connect(prev_layer)
+            )
+            n_cells = self.config['n_cells']
+            f_lstm_layer = LSTM(
+                name="flstm_%d" % i,
+                size=n_cells,
+                dropout_W=self.config['p_drop'],
+                dropout_U=['p_drop']
+            )(last_layer)
+            f_lstm_layer.connect(last_layer)
 
-            if lstm_bidi:
-                b_lstm_layer = LstmRecurrent(
+            # Backward LSTM
+            if self.config['lstm_bidi']:
+                b_lstm_layer = LSTM(
                     name="blstm_%d" % i,
                     size=n_cells,
                     seq_output=True,
                     out_cells=False,
                     backward=True,
-                    peepholes=lstm_peepholes,
-                    p_drop=p_drop,
-                    enable_branch_exp=enable_branch_exp
-                )
-                b_lstm_layer.connect(prev_layer)
-                lstm_zip = ZipLayer(
-                    concat_axis=2,
-                    layers=[f_lstm_layer, b_lstm_layer]
-                )
-                prev_layer = lstm_zip
+                    dropout_W=self.config['p_drop'],
+                    dropout_U=self.config['p_drop']
+                )(last_layer)
+                lstm_merge = Merge([f_lstm_layer, b_lstm_layer], mode='concat')
+                last_layer = lstm_merge
             else:
-                prev_layer = f_lstm_layer
+                last_layer = f_lstm_layer
 
-        assert prev_layer is not None
-
-        y_seq_id = tt.ivector()
-        y_time = tt.ivector()
-        y_weight = tt.vector()
-        y_label = {}
-        for slot in slots:
-            y_label[slot] = tt.ivector(name='y_label_%s' % slot)
-
-        cpt = CherryPick()
-        cpt.connect(prev_layer, y_time, y_seq_id)
+        assert last_layer is not None
 
         costs = []
         predictions = []
-        for slot, slot_lstm_mlp in zip(slots, mlps):
+        for slot, slot_lstm_mlp in zip(self.config['slots'], mlps):
             logging.info('Building output classifier for %s.' % slot)
-            n_classes = len(slot_classes[slot])
-            if oclf_n_layers > 0:
-                slot_mlp = MLP(
-                    [oclf_n_hidden  ] * oclf_n_layers,
-                    [oclf_activation] * oclf_n_layers,
-                    [p_drop         ] * oclf_n_layers,
-                    name="mlp_%s" % slot
+            n_classes = len(self.config['slot_classes'][slot])
+            oclf_n_layers = self.config['oclf_n_layers']
+            if oclf_n_layers:
+                slot_mlp = self._build_mlp(
+                    [self.config['oclf_n_hidden']] * oclf_n_layers,
+                    [self.config['oclf_activation']] * oclf_n_layers,
+                    last_layer,
+                    'mlp_%s' % slot
                 )
-                slot_mlp.connect(cpt)
+            predictions.append(slot_mlp)
+        merge_layer = Merge(predictions, mode='concat')
 
-            slot_softmax = BiasedSoftmax(
-                name='softmax_%s' % slot,
-                size=n_classes
-            )
-            if oclf_n_layers > 0:
-                slot_softmax.connect(slot_mlp)
-            else:
-                slot_softmax.connect(cpt)
-
-            predictions.append(slot_softmax.output(dropout_active=False))
-
-            slot_objective = WeightedCrossEntropyObjective()
-            slot_objective.connect(
-                y_hat_layer=slot_softmax,
-                y_true=y_label[slot],
-                y_weights=y_weight
-            )
-            costs.append(slot_objective)
-        if token_supervision:
-            costs.append(token_supervision_loss_layer)
-
-        cost = SumOut()
-        cost.connect(*costs)  #, scale=1.0 / len(slots))
-        self.params = params = list(cost.get_params())
-        n_params = sum(p.get_value().size for p in params)
-        logging.info('This model has %d parameters:' % n_params)
-        for param in sorted(params, key=lambda x: x.name):
-            logging.info(
-                '  - %20s: %10d' % (param.name, param.get_value().size, )
-            )
-        cost_value = cost.output(dropout_active=True)
-
-        lr = tt.scalar('lr')
-        clipnorm = 0.5
-        reg = updates.Regularizer(l1=l1, l2=l2)
-
-        loss_args = list(input_args)
-        loss_args += [y_seq_id, y_time]
-        loss_args += [y_weight]
-        loss_args += [y_label[slot] for slot in slots]
-        if token_supervision:
-            loss_args += [y_tokens_label]
+        self.model = Model(input=input_layer, output=merge_layer)
+        self.model.compile(
+            optimizer=self.config['opt_type'],
+            loss='categorical_crossentropy',
+            metrics=['accuracy']
+        )
 
     def init_loaded(self):
         pass
@@ -213,13 +162,14 @@ class ModelKeras(ModelBase):
     def init_word_embeddings(self, w):
         self.input_emb.set_value(w)
 
-    def _build_mlp(self, in_layer_sizes, in_activation, in_input, in_name):
+    def _build_mlp(self, in_layer_sizes, in_activations, in_input, in_name):
         last_layer = in_input
-        for layer_index, layer_size in enumerate(in_layer_sizes):
+        for layer_index, layer_params in enumerate(in_layer_sizes, zip(in_layer_sizes, in_activations)):
+            layer_size, layer_activation = layer_params
             input_transform_i = Dense(
                 layer_size,
                 name='{}_{}'.format(in_name, layer_index),
-                activation=in_activation,
+                activation=layer_activation,
                 init='normal'
             )(last_layer)
             last_layer = input_transform_i
