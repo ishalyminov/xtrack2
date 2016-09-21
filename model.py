@@ -1,13 +1,11 @@
 import logging
-
 import operator
-from keras.engine import Input
-from keras.engine import Merge
-from keras.engine import Model
+
+from keras.engine import Input, Model
+from keras.engine import merge
+from keras.layers import Dense, Embedding, Dropout, LSTM, Reshape
 
 from model_base import ModelBase
-
-from keras.layers import Dense, Embedding, Dropout, LSTM
 
 
 class ModelKeras(ModelBase):
@@ -55,19 +53,21 @@ class ModelKeras(ModelBase):
         # input_layers = [emb]
         # sum_layer = Merge(input_layers, mode='sum')(emb)
 
-        last_layer = emb
+        last_layer = Reshape(
+            (self.max_sequence_length, self.config['emb_size'])
+        )(emb)
         if self.config.get('input_n_layers', None):
             last_layer = self._build_mlp(
+                'input',
                 [self.config['input_n_hidden']] * self.config['input_n_layers'],
-                last_layer,
-                'input'
+                last_layer
             )
 
         if self.config.get('token_supervision', None):
             last_layer = self._build_mlp(
+                'ts',
                 [len(self.slots) * 2],
                 ['sigmoid'],
-                'ts',
                 last_layer
             )
 
@@ -83,22 +83,6 @@ class ModelKeras(ModelBase):
             'There are {} input layers'.format(self.config['input_n_layers'])
         )
 
-        # h_t_layer = IdentityInput(None, n_cells)
-        mlps = []
-        mlp_params = []
-        for slot in self.config['slot_classes']:
-            n_classes = len(self.config['slot_classes'][slot])
-            n_layers = self.config['oclf_n_layers']
-            slot_mlp = self._build_mlp(
-                [self.config['oclf_n_hidden']] * n_layers + [n_classes],
-                [self.config['oclf_activation']] * n_layers + ['softmax'],
-                'mlp',
-                last_layer
-            )
-            # slot_mlp.connect(h_t_layer)
-            mlps.append(slot_mlp)
-            mlp_params.extend(slot_mlp.get_params())
-
         for i in range(self.config['rnn_n_layers']):
             # Forward LSTM layer
             logging.info(
@@ -108,25 +92,24 @@ class ModelKeras(ModelBase):
             )
             n_cells = self.config['n_cells']
             f_lstm_layer = LSTM(
-                name="flstm_%d" % i,
-                size=n_cells,
+                n_cells,
+                name='flstm_{}'.format(i),
                 dropout_W=self.config['p_drop'],
-                dropout_U=['p_drop']
+                dropout_U=self.config['p_drop'],
+                # return_sequences=True
             )(last_layer)
-            f_lstm_layer.connect(last_layer)
 
             # Backward LSTM
             if self.config['lstm_bidi']:
                 b_lstm_layer = LSTM(
-                    name="blstm_%d" % i,
-                    size=n_cells,
-                    seq_output=True,
-                    out_cells=False,
-                    backward=True,
+                    n_cells,
+                    name='blstm_{}'.format(i),
+                    # return_sequences=True,
+                    go_backwards=True,
                     dropout_W=self.config['p_drop'],
                     dropout_U=self.config['p_drop']
                 )(last_layer)
-                lstm_merge = Merge([f_lstm_layer, b_lstm_layer], mode='concat')
+                lstm_merge = merge([f_lstm_layer, b_lstm_layer], mode='sum')
                 last_layer = lstm_merge
             else:
                 last_layer = f_lstm_layer
@@ -135,19 +118,18 @@ class ModelKeras(ModelBase):
 
         costs = []
         predictions = []
-        for slot, slot_lstm_mlp in zip(self.config['slots'], mlps):
-            logging.info('Building output classifier for %s.' % slot)
-            n_classes = len(self.config['slot_classes'][slot])
-            oclf_n_layers = self.config['oclf_n_layers']
-            if oclf_n_layers:
+        n_layers = self.config['n_layers']
+        if n_layers:
+            for slot in self.slots:
+                logging.info('Building output classifier for %s.' % slot)
                 slot_mlp = self._build_mlp(
-                    [self.config['oclf_n_hidden']] * oclf_n_layers,
-                    [self.config['oclf_activation']] * oclf_n_layers,
-                    last_layer,
-                    'mlp_%s' % slot
+                    'mlp_%s' % slot,
+                    [len(self.slot_classes[slot])] * n_layers,
+                    [self.config['oclf_activation']] * n_layers,
+                    last_layer
                 )
-            predictions.append(slot_mlp)
-        merge_layer = Merge(predictions, mode='concat')
+                predictions.append(slot_mlp)
+            merge_layer = merge(predictions, mode='concat')
 
         self.model = Model(input=input_layer, output=merge_layer)
         self.model.compile(
@@ -162,9 +144,9 @@ class ModelKeras(ModelBase):
     def init_word_embeddings(self, w):
         self.input_emb.set_value(w)
 
-    def _build_mlp(self, in_layer_sizes, in_activations, in_input, in_name):
+    def _build_mlp(self, in_name, in_layer_sizes, in_activations, in_input):
         last_layer = in_input
-        for layer_index, layer_params in enumerate(in_layer_sizes, zip(in_layer_sizes, in_activations)):
+        for layer_index, layer_params in enumerate(zip(in_layer_sizes, in_activations)):
             layer_size, layer_activation = layer_params
             input_transform_i = Dense(
                 layer_size,
